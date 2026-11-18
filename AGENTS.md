@@ -27,7 +27,7 @@ Noch offen (Design).
 
 ## Context index
 
-- Recherche zu Kit-Bausteinen und Store-Nachbarn: Cockpit, `_SDD/2026-11-18-recherche-kit-bausteine-und-store-nachbarn.md`.
+- Recherche zu Kit-Bausteinen und Store-Nachbarn: `$CODING_COCKPIT_VAULT/25_Coding/hypertext-exporter/_SDD/2026-11-18-recherche-kit-bausteine-und-store-nachbarn.md` (Cockpit, nicht im Repo).
 
 ## Memory
 
