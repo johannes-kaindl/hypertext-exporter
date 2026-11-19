@@ -1,9 +1,10 @@
-// Je Notiz zeichnen (Bauplan Task 6, Spec 10.2 Schritt 2b und 3): Vorbehandlung, Zeichnen über das Kit, Einbettungen prüfen.
+// Je Notiz zeichnen (Bauplan Task 6 und 7, Spec 10.2 Schritt 2b bis 5): Vorbehandlung, Zeichnen über das Kit, Einbettungen prüfen, Einfrieren (Schutzdurchgang folgt mit Bestellung 11).
 // Gezeichnet wird ausschließlich von `withRenderedNote` (Kit, Bestellung 1): Host, Frist, Mermaid-Wartezeit, Ruhe-Regel und Fenstercheck liegen dort. Hier steht nur,
 // was plugin-eigene Typen trägt: die Übersetzung der Kit-Befunde in `Finding`, die Prüfung der Einbettungen gegen die Menge und der Ablauf je Notiz.
 import { parseLinktext, stripHeading, type App, type TFile } from 'obsidian';
 import { CODES } from '../core/finding-codes';
 import type { Finding, Recipe, RunControl, SetNote } from '../core/types';
+import { freezeRenderedDom, type ExportFreezeFinding, type ExportFreezePorts } from '../vendor/kit/export-freeze';
 import { RENDER_NOTE_CSS, withRenderedNote, type RenderNoteFinding, type RenderNotePorts } from '../vendor/kit-obsidian/render-note';
 
 /** Vertrag mit `styles.css`: der Host des Kit-Zeichners braucht diese Regel wortgleich (Test `render.test.ts` prüft es). */
@@ -17,6 +18,8 @@ export interface RenderDeps {
   /** Dokument des Zeichners und Ports des Kits (Uhr, Beobachter, Sichtbarkeit); nur für Tests. */
   doc?: Document;
   kit?: Partial<RenderNotePorts>;
+  /** Port des Einfrierens (Bild und Vergleichsfläche); Vorgabe das Obsidian-Global `createEl`. */
+  freezePorts?: ExportFreezePorts;
 }
 
 export interface RenderResult {
@@ -56,6 +59,30 @@ export function translateRenderFinding(f: RenderNoteFinding, notePath: string): 
     case 'embed-missing':
       return { severity: 'warning', code: CODES.embedMissing, message: `Einbettung ohne Ziel: ${f.target}`, notePath };
   }
+}
+
+/** Kit-Befund des Einfrierens als `Finding` mit Präfix `freeze.` und Pfad der Notiz. */
+export function translateFreezeFinding(f: ExportFreezeFinding, notePath: string): Finding {
+  switch (f.kind) {
+    case 'canvas-failed':
+      return { severity: 'warning', code: CODES.freezeCanvasFailed, message: `Ein Canvas ließ sich nicht in ein Bild wandeln und fehlt in der Seite (${f.reason})`, notePath };
+    case 'canvas-blank':
+      return { severity: 'warning', code: CODES.freezeCanvasBlank, message: `Ein Canvas (${f.width} × ${f.height}) ist leer gezeichnet worden; das Bild bleibt als leere Fläche`, notePath };
+    case 'empty-block': {
+      const where = f.hint === '' ? f.what : `${f.what}: ${f.hint}`;
+      return { severity: 'warning', code: CODES.freezeEmptyBlock, message: `Ein Block blieb leer (${where})`, notePath };
+    }
+  }
+}
+
+/**
+ * Die Naht für Kit-Bestellung 11 (Schutzdurchgang, Spec 10.2 Schritt 5): Skripte, Ereignis-Attribute, `javascript:`-Ziele und Rahmen aus dem eingefrorenen Baum entfernen,
+ * jedes Entfernte als `guard.removed`. Bis das Kit sie liefert, ändert sie nichts. Hier, und nur hier, wird 11 eingesetzt.
+ */
+function protectTree(root: HTMLElement, note: SetNote): Finding[] {
+  void root;
+  void note;
+  return [];
 }
 
 /**
@@ -143,6 +170,12 @@ export async function renderNote(app: App, note: SetNote, recipe: Recipe, run: R
       if (rendered.findings.some((f) => f.kind === 'window-hidden')) return { root, findings };
       findings.push(...checkEmbeds(app, rendered.root, note, deps.inSet));
       prepared.restore(rendered.root);
+      // Einfrieren am angehängten Baum (der Canvas braucht seinen Inhalt), erst danach löst sich der Inhalt vom Host.
+      const frozen = freezeRenderedDom(rendered.root, deps.freezePorts ?? { createEl: (tag) => createEl(tag) });
+      // Eine Einbettung ohne Ziel (`mod-empty`) hat der Zeichner schon als `embed.missing` gemeldet; nicht noch einmal als leerer Block.
+      const unreported = frozen.findings.filter((f) => !(f.kind === 'empty-block' && f.what === 'embed' && /\bmod-empty/.test(f.hint)));
+      findings.push(...unreported.map((f) => translateFreezeFinding(f, note.path)));
+      findings.push(...protectTree(rendered.root, note));
       root.append(...Array.from(rendered.root.childNodes));
       return { root, findings };
     },

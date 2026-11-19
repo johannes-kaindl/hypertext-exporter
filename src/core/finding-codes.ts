@@ -14,6 +14,8 @@ export const CODES = {
   renderFailed: 'render.failed',
   renderMermaidMissing: 'render.mermaid-missing',
   freezeEmptyBlock: 'freeze.empty-block',
+  freezeCanvasFailed: 'freeze.canvas-failed',
+  freezeCanvasBlank: 'freeze.canvas-blank',
   guardRemoved: 'guard.removed',
   mediaNotEmbedded: 'media.not-embedded',
   mediaRemoteSkipped: 'media.remote-skipped',
