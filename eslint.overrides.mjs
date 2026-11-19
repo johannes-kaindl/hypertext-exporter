@@ -23,4 +23,11 @@ export default [
       },
     },
   },
+  {
+    // STORE-SCHULD: code-kit 0.86.0 web/export-guard.ts:141 faellt mit `?? document` auf das globale
+    // document zurueck (toter Code, Element.ownerDocument ist nie null). Mangel an Bestellung 11 beim
+    // Kit-Master gemeldet (2026-11-19); dieser Override faellt mit dem naechsten code-kit-Tag, der ihn behebt.
+    files: ["src/vendor/kit/export-guard.ts"],
+    rules: { "obsidianmd/prefer-active-doc": "off" },
+  },
 ];

@@ -1,4 +1,4 @@
-// vendored from code-kit@0.85.0, src/ts/pure/anchor-marks.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
+// vendored from code-kit@0.86.0, src/ts/pure/anchor-marks.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
 // Origin: new in code-kit (Welle 36, h1c, order 6 of the hypertext-exporter plan, spec 10.3 and 10.4; the part of the order that needs no DOM, the DOM runner that
 // sets the marks on Obsidian's rendered tree is written in obsidian-kit — decision of the kit master 2026-11-19). Measured before building: `slug` (`slugify`) writes
 // the slug and is used as it is; `heading-title` finds a note's first heading and gives no mark; `export-studio/src/ids.ts` was read for the umlaut and number edge
@@ -93,8 +93,11 @@ export interface NoteMarks {
   heading(text: string): string;
   /** `<mark>--fn-<n>`: the footnote's own anchor. `n` is the footnote's number in this note, counted from 1. */
   footnote(n: number): string;
-  /** `<mark>--fnref-<n>`: the anchor of the reference that points at the footnote. */
-  footnoteRef(n: number): string;
+  /** `<mark>--fnref-<n>`: the anchor of the reference that points at the footnote. `k` is the repeat, counted as Obsidian counts it (measured in 1.15.1 by h3: the
+   *  first reference carries `fnref-<n>-<hex>`, a REPEATED one `fnref-<n>-<k>-<hex>` with the text `[1-1]`, so the first repeat is `k = 1`): `<mark>--fnref-<n>--<k>`. The double
+   *  hyphen is the separator no slug holds, so a heading whose slug reads `fnref-1-2` (mark `<mark>--fnref-1-2`) never meets the repeat `<mark>--fnref-1--2`. Without `k`
+   *  (or below 1) the mark is the one of the first reference, byte for byte as before. */
+  footnoteRef(n: number, k?: number): string;
   /** The marks of the n-th embedded note of this one: its `mark` is `<mark>--e<n>`. Asking again with the same `n` gives a fresh set with the same marks. */
   embed(n: number): NoteMarks;
 }
@@ -111,7 +114,7 @@ export function createNoteMarks(mark: string): NoteMarks {
       return `${mark}--${claim(slug, claims)}`;
     },
     footnote: (n) => `${mark}--fn-${part(n)}`,
-    footnoteRef: (n) => `${mark}--fnref-${part(n)}`,
+    footnoteRef: (n, k) => (k === undefined || !(k >= 1) ? `${mark}--fnref-${part(n)}` : `${mark}--fnref-${part(n)}--${part(k)}`),
     embed: (n) => createNoteMarks(`${mark}--e${part(n)}`),
   };
 }

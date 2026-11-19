@@ -4,7 +4,7 @@
       "ref": "0.104.0"
     },
     "code-kit": {
-      "ref": "0.85.0"
+      "ref": "0.86.0"
     }
   },
   "targets": [
@@ -42,7 +42,8 @@
         "csp",
         "field-template",
         "screen-document",
-        "anchor-marks"
+        "anchor-marks",
+        "css-rules"
       ]
     },
     {
@@ -124,7 +125,10 @@
       "modules": [
         "svg-guard",
         "macrotask-pause",
-        "anchor-check"
+        "anchor-check",
+        "export-guard",
+        "link-guard",
+        "leave-tree"
       ],
       "rewrite": [
         [
