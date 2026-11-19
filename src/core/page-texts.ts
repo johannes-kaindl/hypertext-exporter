@@ -14,6 +14,8 @@ export interface PageTexts {
   skipLink: string;
   /** Überschrift des Inhaltsverzeichnisses in der Navigation. */
   tocHeading: string;
+  /** Kopf der ersten Spalte jeder Übersicht (der Titel der Notiz). */
+  overviewTitle: string;
   media: MediaTexts;
 }
 
@@ -23,6 +25,7 @@ export const PAGE_TEXTS: Record<PageLang, PageTexts> = {
   en: {
     skipLink: 'Skip to content',
     tocHeading: 'Contents',
+    overviewTitle: 'Title',
     media: {
       notEmbedded: 'Not embedded:',
       remoteSkipped: 'Remote image not loaded:',
@@ -33,6 +36,7 @@ export const PAGE_TEXTS: Record<PageLang, PageTexts> = {
   de: {
     skipLink: 'Zum Inhalt',
     tocHeading: 'Inhalt',
+    overviewTitle: 'Titel',
     media: {
       notEmbedded: 'Nicht eingebettet:',
       remoteSkipped: 'Bild aus dem Netz nicht geladen:',
