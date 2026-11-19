@@ -5,6 +5,7 @@ import { CODES } from '../core/finding-codes';
 import type { Finding, Recipe, SetNote } from '../core/types';
 import { bytesToBase64, dataUrlToBytes } from '../vendor/kit/data-url';
 import { imageSourceKind } from '../vendor/kit/image-source';
+import { baseName, splitFileName } from '../vendor/kit/rel-path';
 import { checkSvg } from '../vendor/kit/svg-guard';
 import { inlineImages, type InlineImagesPorts } from '../vendor/kit-obsidian/inline-images';
 
@@ -28,9 +29,10 @@ type Texts = (typeof MEDIA_TEXTS)[Recipe['lang']];
 
 const EMBED_SELECTOR = 'span.internal-embed, div.internal-embed';
 
+/** Letztes Pfadstück eines Einbettungsziels (Alias `|…` und Anker `#…` abgeschnitten, prozentdekodiert); Pfadlogik aus dem Kit. */
 function lastSegment(path: string): string {
   const cleaned = path.split('|')[0]?.split('#')[0] ?? '';
-  const seg = cleaned.split('/').pop() ?? '';
+  const seg = baseName(cleaned);
   try {
     return decodeURIComponent(seg);
   } catch {
@@ -39,9 +41,7 @@ function lastSegment(path: string): string {
 }
 
 function extensionOf(path: string): string {
-  const name = lastSegment(path.split('?')[0] ?? '');
-  const dot = name.lastIndexOf('.');
-  return dot < 0 ? '' : name.slice(dot + 1).toLowerCase();
+  return splitFileName(lastSegment(path.split('?')[0] ?? '')).ext;
 }
 
 /** Dateiname für den Hinweis: `src` der umgebenden Einbettung, sonst `alt`, sonst bei einem rohen Vault-Pfad dessen letztes Stück; nie aus einer `app://`-Adresse. */
