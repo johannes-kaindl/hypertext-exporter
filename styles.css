@@ -68,3 +68,6 @@
 .ht-finding-message { color: var(--text-normal); overflow-wrap: anywhere; }
 .ht-finding-meta { display: flex; flex-wrap: wrap; gap: var(--size-2-3) var(--size-4-2); font-size: var(--font-ui-smaller); color: var(--text-muted); }
 .ht-finding-note { overflow-wrap: anywhere; }
+
+/* Notiz-Host des Zeichners: RENDER_NOTE_CSS aus obsidian-kit (render-note.ts), wortgleich (Kit-Vertrag). */
+.okit-render-note-host { position: fixed; left: 0; top: 0; width: var(--okit-render-width, 800px); opacity: 0; pointer-events: none; z-index: -1; }

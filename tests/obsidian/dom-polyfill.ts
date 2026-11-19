@@ -15,6 +15,7 @@ export function installObsidianDom(): void {
   const g = globalThis as unknown as Record<string, unknown>;
   g.createEl = build;
   g.createSpan = (o?: Info | string) => build('span', o);
+  g.createDiv = (o?: Info | string) => build('div', o);
   const proto = Node.prototype as unknown as Record<string, unknown>;
   proto.createEl = function (this: Node, tag: keyof HTMLElementTagNameMap, o?: Info | string) {
     const el = build(tag, o);

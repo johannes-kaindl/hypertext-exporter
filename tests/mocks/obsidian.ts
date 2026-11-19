@@ -66,3 +66,12 @@ export class AbstractInputSuggest<T> {
   close(): void {}
   getSuggestions(_query: string): T[] { return []; }
 }
+
+// Link-Hilfen für src/obsidian/render.ts: gleiche Schnittstelle wie Obsidians, vereinfacht (Teilung am ersten `#`, Überschrift ohne Sonderzeichen).
+export function parseLinktext(linktext: string): { path: string; subpath: string } {
+  const i = linktext.indexOf("#");
+  return i < 0 ? { path: linktext, subpath: "" } : { path: linktext.slice(0, i), subpath: linktext.slice(i) };
+}
+export function stripHeading(heading: string): string {
+  return heading.replace(/[!"#$%&()*+,.:;<=>?@^`{|}~/[\]\\]/g, " ").replace(/\s+/g, " ").trim();
+}
