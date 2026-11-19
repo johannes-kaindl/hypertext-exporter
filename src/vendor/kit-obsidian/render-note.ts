@@ -1,4 +1,4 @@
-// vendored from obsidian-kit@0.103.0, src/obsidian/render-note.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
+// vendored from obsidian-kit@0.104.0, src/obsidian/render-note.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
 // render-note.ts — eine Notiz mit Obsidians Renderer in einen DOM-Baum holen, der VOLLSTÄNDIG gezeichnet ist: Host am Dokument, Frist, Mermaid-Wartezeit, Ruhe-Regel mit fester Obergrenze, Befunde statt Würfe.
 //
 // Warum es das gibt (Welle 36, Bestellung hypertext-exporter 1): drei Exporter rendern dieselbe Sache dreimal verschieden. epub-exporter (`deps.ts`) rendert in einen LOSEN Host ohne Frist, Letterhead im Vektor-Weg ebenso;
@@ -21,6 +21,9 @@
 //   6. **Der Baum lebt nur im Rückruf.** `withRenderedNote` räumt Host und Component selbst ab, auch bei einem Wurf des Verbrauchers; Berechnungen am angehängten Baum (Farben, Canvas, Maße) gehören in den Rückruf.
 //
 // Nicht Teil dieses Bausteins: Einfrieren (Bestellung 10), Vorbehandlung (21), Medien/Bilder (`inlineImages`), Links (7).
+//
+// **Nur Notiztext, kein Modelltext.** Der Baustein rendert Notizen des Nutzers für einen Export, wie Paperize und epub-exporter, ohne Linkschutz (`dom-guard`). Text aus einem Modell oder einer fremden Quelle gehört in `renderMarkdownGuarded`;
+// im Dach steht die Stelle darum in `KEIN_TRAEGER` von `tools/linkschutz_check.py` (Entscheidung Kit-Master 2026-11-19, Welle 36).
 
 import { Component, MarkdownRenderer, type App } from "obsidian";
 import { realClock, type ClockPort } from "./clock";

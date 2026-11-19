@@ -1,4 +1,4 @@
-// vendored from obsidian-kit@0.103.0, src/pure/export-freeze.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
+// vendored from obsidian-kit@0.104.0, src/pure/export-freeze.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
 // export-freeze.ts — einen von Obsidian gezeichneten Baum für eine STATISCHE Seite einfrieren: Canvas wird Bild, Bedienelemente und Arbeitsklassen fallen, Kontrollkästchen werden gesperrt, leer gebliebene Blöcke stehen im Befund.
 // Kein `obsidian`-Import.
 //

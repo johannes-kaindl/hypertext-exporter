@@ -281,6 +281,15 @@ describe('renderNote: Vorbehandlung über das Kit', () => {
     expect(out.findings[0]).toMatchObject({ severity: 'warning', code: CODES.renderPlaceholderLost, notePath: note.path });
     expect(Array.from(out.root.querySelectorAll('pre > code')).map((c) => c.textContent)).toEqual(['zwei']);
   });
+
+  it('ein Absatz, der genau aus der Grundform des Platzhalters besteht, bleibt Text (das Kit wählt einen freien Präfix)', async () => {
+    const d = drawFromMarkdown();
+    const out = await renderNote(fakeApp({}), withBody('OKITEXPORTCODE0\n\n```js\neins\n```'), recipeWith('core'), run(), d.deps);
+    expect(out.findings).toEqual([]);
+    // Reihenfolge prüfen: mit fester Grundform träfe das Zurücksetzen den ersten Absatz (den Text) und ließe den echten Platzhalter als Text stehen;
+    // die Mengen wären gleich, nur vertauscht.
+    expect(Array.from(out.root.children).map((el) => `${el.tagName}:${el.textContent ?? ''}`)).toEqual(['P:OKITEXPORTCODE0', 'PRE:eins']);
+  });
 });
 
 describe('renderNote: mit dem echten Zeichner des Kits', () => {

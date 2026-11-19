@@ -1,4 +1,4 @@
-// vendored from obsidian-kit@0.103.0, src/pure/export-prepare.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
+// vendored from obsidian-kit@0.104.0, src/pure/export-prepare.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
 // export-prepare.ts — Notizkörper vor `MarkdownRenderer.render` für einen Export vorbereiten: rohe Rahmen ersetzen, Codeblöcke nach Stellung herausnehmen, Inline-Abfragen brechen. Kein `obsidian`-Import.
 //
 // Warum hier und nicht in code-kit (erste Frage aus AGENTS.md): der Vertrag trägt Obsidian-Annahmen, die code-kit nicht kennt: `app:`-, relative und `file:`-Ziele eines rohen Rahmens öffnen in Obsidian 1.15.1 einen Fehlerdialog des
@@ -17,6 +17,8 @@
 //    Spannen in Codeblöcken zählen nicht.
 // Vertrag: rein, idempotent (ein zweiter Lauf ändert nichts und findet nichts), linear (Spannen über eine Tabelle „nächster gleich langer Lauf“, Tag-Ende höchstens 4000 Zeichen weit, Zäune von `listAllFences`). Das Zeilenende
 // (LF oder CRLF) bleibt. Die Stellung ist ein Parameter, kein Plugin-Typ.
+// Platzhalter-Präfix (Nachtrag zu Bestellung 21, Kit-Master 4, 2026-11-19): die Funktion wählt ihn selbst frei (`freeCodePrefix`), damit kein Platzhalter einem Absatz des Nutzertexts gleicht (eine Notiz, die den Export
+// beschreibt, kann `OKITEXPORTCODE0` tragen). Der Aufrufer setzt nach `result.prefix` bzw. `codes[i].placeholder` zurück, nie nach der Vorgabe.
 // Grenzen: eingerückter Code (vier Leerzeichen) wird nicht als Codeblock gelesen und deshalb nicht herausgenommen; ein Rahmen darin würde ersetzt, eine Abfrage darin gebrochen (beides unschädlich). Eine Code-Spanne über eine
 // Zitatgrenze wird mit dem `>` der Folgezeile gelesen. Dataview mit anderem Präfix als `=`/`$=` (Einstellung) wird nicht erkannt; der Aufrufer kann `inlinePrefixes` setzen.
 
@@ -28,7 +30,8 @@ export type CodeBlockPolicy = "none" | "core" | "all";
 export interface ExportPrepareOptions {
   /** Welche Codeblöcke bleiben im Text: `none` keiner, `core` nur `mermaid` bleibt, `all` alle. Vorgabe `none` (der sichere Wert). */
   codeBlocks?: CodeBlockPolicy;
-  /** Präfix der Platzhalter für herausgenommene Codeblöcke (`${prefix}${i}`); der Aufrufer wählt etwas, das im Text nicht vorkommt. Vorgabe `OKITEXPORTCODE`. */
+  /** Grundform des Präfixes der Platzhalter für herausgenommene Codeblöcke (`${prefix}${i}`). Vorgabe `OKITEXPORTCODE` (auch für `""`). Kommt sie im Text vor, wählt die Funktion selbst einen freien Präfix
+   *  (`freeCodePrefix`); der gewählte steht in `ExportPrepareResult.prefix`. */
   prefix?: string;
   /** Der Text, der an die Stelle eines Rahmens tritt (Markdown). Vorgabe `\[<tag>\]`. */
   frameText?: (tag: string) => string;
@@ -59,9 +62,36 @@ export interface ExportPrepareResult {
   frames: number;
   /** Wie viele Inline-Abfragen gebrochen wurden. */
   inlineQueries: number;
+  /** Der Präfix, den die Platzhalter tragen: die Grundform, oder ein freier, wenn sie im Text vorkam (`freeCodePrefix`). Kommt im Eingabetext nicht vor. */
+  prefix: string;
 }
 
 export const DEFAULT_CODE_PREFIX = "OKITEXPORTCODE";
+
+/**
+ * Ein Präfix, der in `text` nicht vorkommt, damit kein Platzhalter (`${prefix}${i}`) einem Stück des Nutzertexts gleicht (eine Notiz, die den Export
+ * beschreibt, kann `OKITEXPORTCODE0` als Absatz tragen; das Zurücksetzen ersetzte sonst diesen Absatz). Kommt `base` nicht vor, ist es `base`. Sonst
+ * `base` + `Z` + eine Kette aus `1`, eine Stelle länger als die längste Ziffernfolge hinter irgendeinem `${base}Z` im Text: ein Vorkommen dieses Präfixes
+ * trüge eine längere Ziffernfolge, also gibt es keins. Deterministisch (derselbe Text, derselbe Präfix), ein Durchlauf über die Vorkommen von `base`, keine
+ * Zahl, die überlaufen kann. Eine leere `base` gilt als `DEFAULT_CODE_PREFIX`.
+ */
+export function freeCodePrefix(text: string, base: string = DEFAULT_CODE_PREFIX): string {
+  const b = base === "" ? DEFAULT_CODE_PREFIX : base;
+  let at = text.indexOf(b);
+  if (at === -1) return b;
+  let longest = 0;
+  while (at !== -1) {
+    let k = at + b.length;
+    if (text[k] === "Z") {
+      k++;
+      const start = k;
+      while (k < text.length && text.charCodeAt(k) >= 48 && text.charCodeAt(k) <= 57) k++;
+      if (k - start > longest) longest = k - start;
+    }
+    at = text.indexOf(b, at + 1);
+  }
+  return `${b}Z${"1".repeat(longest + 1)}`;
+}
 const FRAME_TAG = /<(\/?)(iframe|frame|object|embed|webview|portal)(?=[\s/>]|$)/gi;
 const TAG_END_CAP = 4000;
 const ZWSP = "​";
@@ -181,7 +211,7 @@ function linePrefix(line: string): string {
 /** Bereitet einen Notizkörper für den Export vor (Kopf der Datei). Wirft nie. */
 export function prepareExportMarkdown(markdown: string, options: ExportPrepareOptions = {}): ExportPrepareResult {
   const policy = options.codeBlocks ?? "none";
-  const prefix = options.prefix ?? DEFAULT_CODE_PREFIX;
+  const prefix = freeCodePrefix(markdown, options.prefix ?? DEFAULT_CODE_PREFIX);
   const frameText = options.frameText ?? ((tag: string) => `\\[${tag}\\]`);
   const prefixes = options.inlinePrefixes ?? ["=", "$="];
   const lines = markdown.split("\n");   // ein \r am Zeilenende bleibt an der Zeile
@@ -233,5 +263,5 @@ export function prepareExportMarkdown(markdown: string, options: ExportPrepareOp
     i = last + 1;
   }
   flush();
-  return { markdown: out.join("\n"), codes, frames: count.frames, inlineQueries: count.queries };
+  return { markdown: out.join("\n"), codes, frames: count.frames, inlineQueries: count.queries, prefix };
 }
