@@ -1,10 +1,10 @@
 {
   "sources": {
     "obsidian-kit": {
-      "ref": "0.99.1"
+      "ref": "0.102.0"
     },
     "code-kit": {
-      "ref": "0.78.0"
+      "ref": "0.82.0"
     }
   },
   "targets": [
@@ -32,7 +32,12 @@
         "safe-markdown",
         "error-message",
         "settings_schema",
-        "num"
+        "num",
+        "html-escape",
+        "frontmatter-field",
+        "fences",
+        "filename-template",
+        "rotation"
       ]
     },
     {
@@ -43,7 +48,13 @@
         "frontmatter",
         "mermaid-wait",
         "image-source",
-        "filename-sanitizer-source"
+        "filename-sanitizer-source",
+        "export-fold",
+        "export-freeze",
+        "export-links",
+        "output-target",
+        "plugin-id",
+        "vault-path"
       ],
       "rewrite": [
         [
@@ -77,7 +88,12 @@
         "status-indicator",
         "clock",
         "plugin-api",
-        "setting-body-host"
+        "setting-body-host",
+        "render-note",
+        "export-output",
+        "export-progress",
+        "replace-file-safely",
+        "file-snapshot"
       ],
       "rewrite": [
         [
@@ -87,6 +103,10 @@
         [
           "../pure/",
           "../kit/"
+        ],
+        [
+          "../vendor/code-kit/web/",
+          "../kit/"
         ]
       ]
     },
@@ -95,7 +115,8 @@
       "source": "code-kit",
       "from": "src/ts/web",
       "modules": [
-        "svg-guard"
+        "svg-guard",
+        "macrotask-pause"
       ],
       "rewrite": [
         [
