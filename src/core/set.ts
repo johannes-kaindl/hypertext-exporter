@@ -111,7 +111,7 @@ export function buildSet(scope: ExportScope, notes: NoteInput[], recipe: Recipe)
 
   const finish = (set: ExportSet): { set: ExportSet; findings: Finding[] } => ({ set, findings: sortFindings(findings) });
   const emptySet = (message: string): { set: ExportSet; findings: Finding[] } => {
-    findings.push(note(CODES.setEmptyFile, 'error', message));
+    findings.push(note(CODES.setEmpty, 'error', message));
     const entry: SetNote = { path: '', title: '', frontmatter: {}, body: '', depth: 0 };
     return finish({ title: recipe.title ?? '', entry, nodes: [], notesInOrder: [] });
   };

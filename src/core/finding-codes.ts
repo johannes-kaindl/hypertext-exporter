@@ -6,6 +6,7 @@ export const CODES = {
   recipeInvalid: 'recipe.invalid',
   recipeNotYet: 'recipe.not-yet',
   setEmptyFile: 'set.empty-file',
+  setEmpty: 'set.empty',
   setExcluded: 'set.excluded',
   setNoGroupValue: 'set.no-group-value',
   renderTimeout: 'render.timeout',

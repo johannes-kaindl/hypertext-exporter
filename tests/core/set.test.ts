@@ -59,7 +59,7 @@ describe('Einstieg', () => {
 
   it('ohne eine Notiz in der Menge ein Fehler (der Lauf bricht ab) und ein Platzhalter-Einstieg', () => {
     const { set, findings } = buildSet(folderScope('leer'), [note('woanders/x.md')], DEFAULT_RECIPE);
-    expect(findings).toEqual([expect.objectContaining({ severity: 'error', code: CODES.setEmptyFile })]);
+    expect(findings).toEqual([expect.objectContaining({ severity: 'error', code: CODES.setEmpty })]);
     expect(set.notesInOrder).toEqual([]);
     expect(set.nodes).toEqual([]);
   });
@@ -78,7 +78,7 @@ describe('Einzelnotiz', () => {
 
   it('eine fehlende Notiz ist ein Fehler', () => {
     const { set, findings } = buildSet({ kind: 'note', entryPath: 'a/fehlt.md' }, [note('a/n.md')], DEFAULT_RECIPE);
-    expect(findings).toEqual([expect.objectContaining({ severity: 'error' })]);
+    expect(findings).toEqual([expect.objectContaining({ severity: 'error', code: CODES.setEmpty })]);
     expect(set.notesInOrder).toEqual([]);
   });
 });
