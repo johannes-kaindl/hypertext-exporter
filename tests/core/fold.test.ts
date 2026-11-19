@@ -133,17 +133,17 @@ describe('Titel nicht doppelt', () => {
 
   it('eine andere h1 oder eine h1, die nicht die erste Überschrift ist, bleibt stehen', () => {
     const other = structure(makeSet(entry, [a]), new Map([[a.path, tree('<h1>Anderes</h1>')]]), recipe(), none.resolve, noExtras, FOLDER).body;
-    expect(other.querySelector('details[data-ht-note] > h1')?.textContent).toBe('Anderes');
+    expect(other.querySelector('details[data-ht-note] > :is(h1,h2,h3,h4,h5,h6)')?.textContent).toBe('Anderes');   // bleibt, nur die Ebene verschiebt der DOM-Läufer
     const later = structure(makeSet(entry, [a]), new Map([[a.path, tree('<h2>Zuerst</h2><h1>Alpha</h1>')]]), recipe(), none.resolve, noExtras, FOLDER).body;
-    expect(later.querySelector('details[data-ht-note] > h1')?.textContent).toBe('Alpha');
+    expect(Array.from(later.querySelectorAll('details[data-ht-note] > :is(h1,h2,h3,h4,h5,h6)')).map((h) => h.textContent)).toEqual(['Zuerst', 'Alpha']);
   });
 
   it('eine Überschrift in einer Einbettung ist nicht die erste Überschrift der Notiz', () => {
     const html = '<span class="internal-embed" src="x"><h1>Alpha</h1></span><h1>Alpha</h1><p>t</p>';
     const body = structure(makeSet(entry, [a]), new Map([[a.path, tree(html)]]), recipe(), none.resolve, noExtras, FOLDER).body;
     const det = body.querySelector('details[data-ht-note]')!;
-    expect(det.querySelectorAll('.internal-embed h1')).toHaveLength(1);
-    expect(det.querySelectorAll(':scope > h1')).toHaveLength(0);
+    expect(det.querySelectorAll('.internal-embed :is(h1,h2,h3,h4,h5,h6)')).toHaveLength(1);
+    expect(det.querySelectorAll(':scope > :is(h1,h2,h3,h4,h5,h6)')).toHaveLength(0);
   });
 
   it('Einstieg: die h1 der Seite ist genau eine; die Titelüberschrift der Einstiegsnotiz kommt nicht dazu', () => {

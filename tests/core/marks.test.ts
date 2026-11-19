@@ -117,11 +117,96 @@ describe('Marken im Baum', () => {
     expect(out.findings).toEqual([]);
   });
 
-  // Das Setzen der id an Überschriften und Fußnoten im gezeichneten Baum liefert der DOM-Läufer aus obsidian-kit 0.106.0 (Bestellung 6, Teil obsidian-kit).
-  it.todo('eingebettete Notiz mit Fußnote und doppelter Überschrift: alle id eindeutig — wartet auf DOM-Läufer obsidian-kit 0.106.0');
-  it.todo('Fußnote der Notiz und der Einbettung springen zur richtigen Stelle (fn-<n>, fnref-<n>) — wartet auf DOM-Läufer obsidian-kit 0.106.0');
-  it.todo('Überschriften je Notiz lückenlos: Einstieg h1, Gruppe h2, Notiz 2 + depth, deren h2 eine Ebene tiefer — wartet auf DOM-Läufer obsidian-kit 0.106.0');
-  it.todo('über h6 bleibt h6 und info heading.capped aus den Überschriften im Text — wartet auf DOM-Läufer obsidian-kit 0.106.0');
+});
+
+describe('Marken im gezeichneten Baum (DOM-Läufer obsidian-kit anchor-walk)', () => {
+  const fnRef = (n: number, hex: string): string =>
+    `<sup class="footnote-ref" data-footnote-id="fnref-${n}-${hex}" id="fnref-${n}-${hex}"><a class="footnote-link" href="#fn-${n}-${hex}">[${n}]</a></sup>`;
+  const fnList = (n: number, hex: string, text: string): string =>
+    `<section class="footnotes"><ol><li data-footnote-id="fn-${n}-${hex}" id="fn-${n}-${hex}"><p>${text} <a class="footnote-backref" href="#fnref-${n}-${hex}">↩</a></p></li></ol></section>`;
+  const HEX_A = 'aaaaaaaaaaaaaaaa';
+  const HEX_B = 'bbbbbbbbbbbbbbbb';
+
+  function page() {
+    const entry = note(`${FOLDER}/e.md`, 'E');
+    const a = note(`${FOLDER}/a.md`, 'A');
+    const b = note(`${FOLDER}/b.md`, 'B');
+    const set = makeSet(entry, [a, b]);
+    const embedB = `<span class="internal-embed markdown-embed is-loaded" src="b"><div class="markdown-embed-content"><div class="markdown-preview-view">`
+      + `<h1 data-heading="B">B</h1><p>innen${fnRef(1, HEX_B)}</p>${fnList(1, HEX_B, 'Fußnote B')}</div></div></span>`;
+    const roots = new Map([
+      [entry.path, tree('<p><a class="internal-link" href="a#Abschnitt" data-href="a#Abschnitt">zu A</a></p>')],
+      [a.path, tree(`<h2 data-heading="Abschnitt">Abschnitt</h2><p>Text${fnRef(1, HEX_A)}</p><h2 data-heading="Abschnitt">Abschnitt</h2>`
+        + `<p><a class="internal-link" href="#Abschnitt" data-href="#Abschnitt">hoch</a></p>${embedB}${fnList(1, HEX_A, 'Fußnote A')}`)],
+      [b.path, tree('<p>B</p>')],
+    ]);
+    const res = resolver({ a: a.path, b: b.path });
+    return { out: structure(set, roots, recipe(), res.resolve, noExtras, FOLDER), entry, a, b };
+  }
+
+  it('eingebettete Notiz mit Fußnote und doppelter Überschrift: alle id eindeutig, jedes href="#…" hat ein Ziel, kein Hex bleibt', () => {
+    const { out } = page();
+    const ids = Array.from(out.body.querySelectorAll('[id]')).map((e) => e.id);
+    expect(new Set(ids).size).toBe(ids.length);
+    expect(checkAnchors(out.body)).toEqual([]);
+    expect(out.body.outerHTML).not.toMatch(/[0-9a-f]{16}/);
+    expect(out.findings).toEqual([]);
+  });
+
+  it('Fußnote der Notiz und der Einbettung springen zur eigenen Stelle; Links auf eine Überschrift treffen deren Marke', () => {
+    const { out, a } = page();
+    const section = out.body.querySelector(`[data-ht-note="${out.anchors.get(a.path)}"]`);
+    const embed = section?.querySelector('.internal-embed');
+    expect(embed).not.toBeNull();
+    const [outerRef, innerRef] = Array.from(section?.querySelectorAll('a.footnote-link') ?? []);
+    const target = (link: Element | undefined): Element | null => out.body.querySelector(`[id="${(link?.getAttribute('href') ?? '#').slice(1)}"]`);
+    expect(target(outerRef)?.textContent).toContain('Fußnote A');
+    expect(target(innerRef)?.textContent).toContain('Fußnote B');
+    expect(embed?.contains(target(innerRef))).toBe(true);
+    expect(embed?.contains(target(outerRef))).toBe(false);
+    for (const back of Array.from(section?.querySelectorAll('a.footnote-backref') ?? [])) expect(target(back)?.classList.contains('footnote-ref')).toBe(true);
+    const firstHeading = section?.querySelector('[data-heading="Abschnitt"]');
+    expect(section?.querySelector('a[href^="#"]:not(.footnote-link):not(.footnote-backref)')?.getAttribute('href')).toBe(`#${firstHeading?.id}`);
+    const fromEntry = out.body.querySelector(`section[data-ht-note] a[href^="#"]`);
+    expect(fromEntry?.getAttribute('href')).toBe(`#${firstHeading?.id}`);
+  });
+
+  it('Überschriften je Notiz lückenlos: Einstieg ab h2, Notiz ab 3 + depth, die Einbettung eine Ebene unter ihrer Überschrift', () => {
+    const entry = note(`${FOLDER}/e.md`, 'E');
+    const loose = note(`${FOLDER}/lose.md`, 'Lose');
+    const a = note(`${FOLDER}/kapitel/a.md`, 'A', 1);
+    const set = makeSet(entry, [loose, group(`${FOLDER}/kapitel`, 'Kapitel', [a])]);
+    const roots = new Map([
+      [entry.path, tree('<h3 data-heading="X">X</h3><p>x</p><h5 data-heading="Y">Y</h5><p>y</p>')],
+      [loose.path, tree('<h2 data-heading="N">N</h2><h4 data-heading="M">M</h4>')],
+      [a.path, tree('<h3 data-heading="P">P</h3><span class="internal-embed markdown-embed is-loaded" src="lose"><div class="markdown-embed-content"><div class="markdown-preview-view"><h1 data-heading="Q">Q</h1></div></div></span>')],
+    ]);
+    const out = structure(set, roots, recipe({ fold: { headingsFrom: null, linkedSummary: false } }), resolver({ lose: loose.path }).resolve, noExtras, FOLDER);
+    const levels = (path: string): string[] => {
+      const el = out.body.querySelector(`[data-ht-note="${out.anchors.get(path)}"]`);
+      return Array.from(el?.querySelectorAll('[data-heading]') ?? []).map((h) => `${h.tagName}:${h.getAttribute('data-heading') ?? ''}`);
+    };
+    expect(levels(entry.path)).toEqual(['H2:X', 'H3:Y']);
+    expect(levels(loose.path)).toEqual(['H3:N', 'H4:M']);
+    expect(levels(a.path)).toEqual(['H4:P', 'H5:Q']);
+    expect(out.findings.filter((f) => f.code === 'heading.capped')).toEqual([]);
+  });
+
+  it('über h6 bleibt h6 und info heading.capped an der Notiz', () => {
+    const entry = note(`${FOLDER}/e.md`, 'E');
+    const a = note(`${FOLDER}/kapitel/a.md`, 'A', 1);
+    const set = makeSet(entry, [group(`${FOLDER}/kapitel`, 'Kapitel', [a])]);
+    const roots = new Map([
+      [entry.path, tree('<p>e</p>')],
+      [a.path, tree('<h2 data-heading="P">P</h2><h3 data-heading="Q">Q</h3><h4 data-heading="R">R</h4><h5 data-heading="S">S</h5>')],
+    ]);
+    const out = structure(set, roots, recipe(), resolver({}).resolve, noExtras, FOLDER);
+    const el = out.body.querySelector(`[data-ht-note="${out.anchors.get(a.path)}"]`);
+    expect(Array.from(el?.querySelectorAll('[data-heading]') ?? []).map((h) => h.tagName)).toEqual(['H4', 'H5', 'H6', 'H6']);
+    const capped = out.findings.filter((f) => f.code === 'heading.capped');
+    expect(capped).toHaveLength(1);
+    expect(capped[0]).toMatchObject({ severity: 'info', notePath: a.path });
+  });
 });
 
 describe('Notizen ohne Baum', () => {

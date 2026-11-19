@@ -13,6 +13,7 @@
 import { assignNoteMarks, createNoteMarks, EMPTY_SLUG, RESERVED_MARKS, type NoteMarks, type NoteRef } from '../vendor/kit/anchor-marks';
 import { foldCallouts, foldHeadingSections, type ExportFoldPorts } from '../vendor/kit/export-fold';
 import { rewriteExportLinks, type ExportLinkFinding, type ExportLinkPorts } from '../vendor/kit/export-links';
+import { walkAnchors } from '../vendor/kit/anchor-walk';
 import { slugify } from '../vendor/kit/slug';
 import { CODES } from './finding-codes';
 import { sortFindings } from './findings';
@@ -61,16 +62,30 @@ function below(path: string, folder: string): string | null {
 /**
  * Naht zum DOM-Läufer von obsidian-kit: setzt im gezeichneten Baum einer Notiz die `id` der Überschriften (`marks.heading(text)`, in Dokumentreihenfolge, Einbettungen mit `marks.embed(n)`),
  * schreibt Obsidians Fußnoten-`id` und -`href` (`fn-1-<hex>`, `fnref-1-<hex>`) auf `marks.footnote(n)` und `marks.footnoteRef(n)` um und verschiebt die Überschriftsebenen der Notiz lückenlos ab `headingBase`
- * (Einstieg 2, Notiz `3 + depth`: über dem Bereich steht die Überschrift der summary). Gibt zurück, wie viele Überschriften tiefer als h6 auf h6 gehalten wurden.
+ * (Einstieg 2, Notiz `3 + depth`: über dem Bereich steht die Überschrift der summary). Seine Befunde gehen über `flag` hinaus (über h6 gehalten: `heading.capped`).
  *
- * Füllt der DOM-Läufer aus obsidian-kit 0.106.0 (Bestellung 6) aus; bis dahin tut die Naht nichts und der Baum bleibt, wie er ist. Aufgerufen wird sie nach dem Weglassen der Titelüberschrift
- * und vor dem Umschreiben der Links, weil `headingMark` die `id` der Überschriften im Baum liest.
+ * Der Läufer (obsidian-kit `anchor-walk`, Bestellung 6) läuft genau einmal je Notiz, nach dem Weglassen der Titelüberschrift und vor dem Umschreiben der Links, weil `headingMark` die `id` der
+ * Überschriften im Baum liest. Die Sprünge, die er selbst gesetzt hat (Fußnoten, `#Überschrift` in derselben Notiz, `href="#<marke>--…"`), tragen danach `data-export-link="jump"`, damit der
+ * Link-Umschreiber sie stehen lässt; was er nicht auflösen konnte (`#^block`, eine fehlende Überschrift), bleibt für den Umschreiber und dessen Befunde.
  */
-function markRenderedNote(root: HTMLElement, marks: NoteMarks, headingBase: number): { clamped: number } {
-  void root;
-  void marks;
-  void headingBase;
-  return { clamped: 0 };
+function markRenderedNote(root: HTMLElement, marks: NoteMarks, headingBase: number, flag: (severity: Finding['severity'], code: string, message: string) => void): void {
+  const doc = root.ownerDocument;
+  const walked = walkAnchors(root, marks, { createEl: (tag) => doc.createElement(tag) }, { baseLevel: headingBase });
+  const own = `#${marks.mark}--`;
+  for (const a of Array.from(root.querySelectorAll('a[href^="#"]'))) {
+    if (!(a.getAttribute('href') ?? '').startsWith(own) || a.hasAttribute(JUMP_ATTR)) continue;
+    a.setAttribute(JUMP_ATTR, 'jump');
+    a.removeAttribute('data-href');
+  }
+  for (const f of walked.findings) {
+    if (f.kind === 'heading-level-clamped') flag('info', CODES.headingCapped, `${f.count} Überschrift(en) lagen tiefer als h6 und bleiben bei h6.`);
+    else if (f.kind === 'heading-id-replaced') flag('info', CODES.markDuplicate, `Die Überschrift „${f.text}“ trug die eigene id „${f.id}“; sie bekommt die Marke der Seite.`);
+    else if (f.kind === 'footnote-id-collision') flag('warning', CODES.markDuplicate, `Die Fußnote „${f.id}“ fiele auf die schon vergebene Marke „${f.mark}“ und bleibt, wie sie ist.`);
+    else if (f.kind === 'footnote-form-unknown') flag('warning', CODES.markMissingTarget, `Die Fußnoten-id „${f.id}“ hat eine unbekannte Form und bleibt, wie sie ist.`);
+    else if (f.kind === 'footnote-target-missing') flag('warning', CODES.markMissingTarget, `Der Fußnoten-Sprung „${f.href}“ hat kein Ziel in der Notiz.`);
+    else if (f.kind === 'embed-not-loaded') flag('info', CODES.embedMissing, `Eine Einbettung war beim Zeichnen noch nicht geladen (Marke „${f.mark}“).`);
+    // fragment-link-unresolved: der Link-Umschreiber meldet ihn (link.heading-missing, link.block)
+  }
 }
 
 /** Die erste Überschrift des Baums (ohne die in Einbettungen); ist sie eine `h1` mit dem Titel, fällt sie weg. Gibt den Titel zurück, wenn sie weggefallen ist. */
@@ -146,8 +161,7 @@ export function structure(
     const dropped = dropTitleHeading(root, isEntry ? [n.title, set.title] : [n.title]);
     if (dropped !== null) removedTitle.set(n.path, slugify(dropped, { fallback: EMPTY_SLUG }));
     if (isEntry && recipe.fold.headingsFrom !== null) foldHeadingSections(root, foldPorts, { fromLevel: recipe.fold.headingsFrom });
-    const { clamped } = markRenderedNote(root, createNoteMarks(markOf(n)), isEntry ? 2 : 3 + n.depth);
-    if (clamped > 0) flag('info', CODES.headingCapped, `${clamped} Überschrift(en) lagen tiefer als h6 und bleiben bei h6.`, n.path);
+    markRenderedNote(root, createNoteMarks(markOf(n)), isEntry ? 2 : 3 + n.depth, (severity, code, message) => flag(severity, code, message, n.path));
   }
 
   // --- 3. Links

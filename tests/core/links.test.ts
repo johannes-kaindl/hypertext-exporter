@@ -50,7 +50,7 @@ describe('Links in der Menge', () => {
 
   it('Link in einer Einbettung wird mit dem Pfad der eingebetteten Notiz aufgelöst', () => {
     const res = resolver({ zwei: zwei.path, rel: ziel.path });
-    const html = `<p>vor</p><span class="internal-embed markdown-embed" src="zwei#Abschnitt"><div class="markdown-embed-content"><p>${a('rel', 'weiter')}</p></div></span><p>${a('rel', 'draußen')}</p>`;
+    const html = `<p>vor</p><span class="internal-embed markdown-embed is-loaded" src="zwei#Abschnitt"><div class="markdown-embed-content"><p>${a('rel', 'weiter')}</p></div></span><p>${a('rel', 'draußen')}</p>`;
     const { out } = run(html, { host: 'ziel', resolve: res });
     expect(res.calls).toContainEqual(['zwei', ziel.path]);
     expect(res.calls).toContainEqual(['rel', zwei.path]);
@@ -101,7 +101,7 @@ describe('Links außerhalb und ungelöst', () => {
 });
 
 describe('Überschrift und Block', () => {
-  const heads = '<h2 id="themen-ziel--erster-teil">Erster Teil</h2><p>x</p>';
+  const heads = '<h2 data-heading="Erster Teil">Erster Teil</h2><p>x</p>';   // wie Obsidian zeichnet: ohne id, die setzt der DOM-Läufer
 
   it('[[Note#Überschrift]] springt zur Marke der Überschrift (gesetzt im gezeichneten Baum)', () => {
     const { out } = run(`<p>${a('Ziel#erster teil', 'dahin')}</p>`, { extraRoots: { [ziel.path]: heads } });
@@ -116,7 +116,7 @@ describe('Überschrift und Block', () => {
   });
 
   it('Überschriften einer Einbettung zählen nicht als Überschriften der Notiz', () => {
-    const emb = '<h2 id="themen-ziel--e1--fremd">Fremd</h2>';
+    const emb = '<span class="internal-embed markdown-embed is-loaded" src="x"><div class="markdown-embed-content"><div class="markdown-preview-view"><h2 data-heading="Fremd">Fremd</h2></div></div></span>';
     const { out } = run(`<p>${a('Ziel#Fremd', 'dahin')}</p>`, { extraRoots: { [ziel.path]: emb } });
     expect(out.body.querySelector('section a')!.getAttribute('href')).toBe('#themen-ziel');
   });
