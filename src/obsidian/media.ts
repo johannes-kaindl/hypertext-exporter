@@ -2,30 +2,13 @@
 // Nach einem Fehlschlag bleibt nie eine `app://`-Adresse oder ein Benutzerpfad im Baum (Spec 10.8, Review Focus).
 import type { App } from 'obsidian';
 import { CODES } from '../core/finding-codes';
+import { PAGE_TEXTS, type MediaTexts } from '../core/page-texts';
 import type { Finding, Recipe, SetNote } from '../core/types';
 import { bytesToBase64, dataUrlToBytes } from '../vendor/kit/data-url';
 import { imageSourceKind } from '../vendor/kit/image-source';
 import { baseName, splitFileName } from '../vendor/kit/rel-path';
 import { checkSvg } from '../vendor/kit/svg-guard';
 import { inlineImages, type InlineImagesPorts } from '../vendor/kit-obsidian/inline-images';
-
-/** Texte, die die Seite selbst setzt, je `lang` (Spec 10.10: nie aus der Obsidian-Sprache). Task 10 führt sie in `page-texts.ts` zusammen. */
-const MEDIA_TEXTS = {
-  en: {
-    notEmbedded: 'Not embedded:',
-    remoteSkipped: 'Remote image not loaded:',
-    later: 'Not embedded in this version:',
-    fallbackName: 'file',
-  },
-  de: {
-    notEmbedded: 'Nicht eingebettet:',
-    remoteSkipped: 'Bild aus dem Netz nicht geladen:',
-    later: 'In dieser Version nicht eingebettet:',
-    fallbackName: 'Datei',
-  },
-} as const;
-
-type Texts = (typeof MEDIA_TEXTS)[Recipe['lang']];
 
 const EMBED_SELECTOR = 'span.internal-embed, div.internal-embed';
 
@@ -45,7 +28,7 @@ function extensionOf(path: string): string {
 }
 
 /** Dateiname für den Hinweis: `src` der umgebenden Einbettung, sonst `alt`, sonst bei einem rohen Vault-Pfad dessen letztes Stück; nie aus einer `app://`-Adresse. */
-function fileNameFor(el: Element, embed: Element | null, texts: Texts): string {
+function fileNameFor(el: Element, embed: Element | null, texts: MediaTexts): string {
   const embedSrc = embed?.getAttribute('src');
   if (embedSrc) {
     const name = lastSegment(embedSrc);
@@ -88,7 +71,7 @@ export async function embedMedia(
   ports?: InlineImagesPorts,
 ): Promise<{ findings: Finding[]; mediaBytes: Record<string, number> }> {
   void app; // Die Quellen kommen als app://-Adresse aus dem Zeichner; das Kit lädt sie selbst.
-  const texts = MEDIA_TEXTS[recipe.lang];
+  const texts = PAGE_TEXTS[recipe.lang].media;
   const findings: Finding[] = [];
   const mediaBytes: Record<string, number> = {};
   const embedOf = (el: Element): Element | null => el.closest(EMBED_SELECTOR);
