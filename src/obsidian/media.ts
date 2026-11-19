@@ -160,7 +160,8 @@ export async function embedMedia(
     const ext = extensionOf(embed.getAttribute('src') ?? '');
     if (ext === '' || ext === 'md') continue;
     const name = fileNameFor(embed, embed, texts);
-    if (embed.classList.contains('is-unresolved')) {
+    // Obsidian zeichnet eine fehlende Datei als `mod-empty-attachment` oder `mod-empty` (Klassen laut obsidian-kit `render-note`, das daran `embed-missing` meldet), ältere Fassungen als `is-unresolved`.
+    if (['is-unresolved', 'mod-empty', 'mod-empty-attachment'].some((c) => embed.classList.contains(c))) {
       embed.replaceWith(hint('ht-media-missing', texts.notEmbedded, name));
       add('warning', CODES.mediaNotEmbedded, `${texts.notEmbedded} ${name}`);
     } else {

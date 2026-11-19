@@ -158,6 +158,13 @@ describe('embedMedia', () => {
     expect(out.findings[0]).toMatchObject({ severity: 'warning', code: CODES.mediaNotEmbedded });
   });
 
+  it('meldet eine leere Anhang-Einbettung (Obsidian: mod-empty-attachment, Datei fehlt) als nicht eingebettet, nicht als später (Erwartung 15)', async () => {
+    const r = root('<span class="internal-embed mod-empty-attachment" src="fehlt.png"></span><span class="internal-embed mod-empty" src="fehlt2.png"></span>');
+    const out = await embedMedia(app, r, note, DEFAULT_RECIPE, portsFrom({}));
+    expect(Array.from(r.querySelectorAll('.ht-media-missing')).map((e) => e.textContent)).toEqual([expect.stringContaining('fehlt.png'), expect.stringContaining('fehlt2.png')]);
+    expect(out.findings.map((f) => f.code)).toEqual([CODES.mediaNotEmbedded, CODES.mediaNotEmbedded]);
+  });
+
   it('nimmt ein SVG nach checkSvg als img mit data:image/svg+xml;base64', async () => {
     const r = root(embedImg('medien/bild.svg', 'app://h/bild.svg'));
     const out = await embedMedia(app, r, note, DEFAULT_RECIPE, portsFrom({ 'app://h/bild.svg': { ok: true, bytes: enc(GOOD_SVG), contentType: 'image/svg+xml' } }));

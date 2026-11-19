@@ -32,10 +32,21 @@ function navigation(input: PageInput): string {
   );
 }
 
-/** Der Inhalt als Text; jedes `<pre>` bekommt `tabindex="0"` (per Tastatur scrollbar). Gearbeitet wird an einer Kopie. */
+/**
+ * Der Inhalt als Text; jedes `<pre>` bekommt `tabindex="0"`, jede Tabelle ohne Behälter einen `div.ht-table[tabindex=0]` (waagerecht scrollbar und per Tastatur erreichbar,
+ * wie die Übersicht der Gruppen). Gearbeitet wird an einer Kopie.
+ */
 function contentHtml(body: HTMLElement): string {
   const copy = body.cloneNode(true) as HTMLElement;
   for (const pre of Array.from(copy.querySelectorAll('pre'))) pre.setAttribute('tabindex', '0');
+  for (const table of Array.from(copy.querySelectorAll('table'))) {
+    if (table.parentElement?.classList.contains('ht-table') === true) continue;
+    const box = copy.ownerDocument.createElement('div');
+    box.className = 'ht-table';
+    box.setAttribute('tabindex', '0');
+    table.replaceWith(box);
+    box.appendChild(table);
+  }
   return copy.innerHTML;
 }
 

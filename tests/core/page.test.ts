@@ -113,4 +113,17 @@ describe('buildPage', () => {
     for (const pre of pres) expect(pre.getAttribute('tabindex')).toBe('0');
     expect(body.innerHTML).toBe(before);
   });
+
+  it('setzt jede Tabelle einer Notiz in einen Behälter div.ht-table mit tabindex 0, eine schon umschlossene nicht doppelt (Erwartung 25)', () => {
+    const body = makeBody('<details><table><tr><td>a</td></tr></table></details><div class="ht-table" tabindex="0"><table><tr><td>b</td></tr></table></div>');
+    const before = body.innerHTML;
+    const doc = parse(buildPage(input({ body })));
+    const tables = Array.from(doc.querySelectorAll('main table'));
+    expect(tables).toHaveLength(2);
+    for (const t of tables) {
+      expect(t.parentElement?.matches('div.ht-table[tabindex="0"]')).toBe(true);
+      expect(t.parentElement?.parentElement?.closest('.ht-table')).toBeNull();
+    }
+    expect(body.innerHTML).toBe(before);
+  });
 });
