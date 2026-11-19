@@ -30,7 +30,9 @@
         "run-exclusive",
         "filename-policy",
         "safe-markdown",
-        "error-message"
+        "error-message",
+        "settings_schema",
+        "num"
       ]
     },
     {

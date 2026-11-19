@@ -1,20 +1,9 @@
-import { getLanguage, Plugin } from "obsidian";
+import { getLanguage, Plugin, type WorkspaceLeaf } from "obsidian";
 import { registerI18n } from "./i18n/strings";
-import { pickLang, setLang } from "./vendor/kit/i18n";
-
-export interface HtSettings {
-  themesFolder: string;
-  destination: "share" | "beside-entry" | "folder";
-  destinationFolder: string;
-  writeFindingsNote: boolean;
-}
-
-export const DEFAULT_SETTINGS: HtSettings = {
-  themesFolder: "hypertext-themes",
-  destination: "beside-entry",
-  destinationFolder: "exports",
-  writeFindingsNote: false,
-};
+import { pickLang, setLang, t } from "./vendor/kit/i18n";
+import type { ExportActions } from "./obsidian/actions";
+import { HtHubView, VIEW_TYPE_HT_HUB, type HubHost } from "./obsidian/hub-view";
+import { HtSettingTab, loadSettings, DEFAULT_SETTINGS, type HtSettings } from "./obsidian/settings";
 
 function readObsidianLocale(): string | null {
   try { return getLanguage(); } catch { return null; }
@@ -22,15 +11,40 @@ function readObsidianLocale(): string | null {
 
 export default class HypertextExporterPlugin extends Plugin {
   settings: HtSettings = { ...DEFAULT_SETTINGS };
+  /** Der Ablauf (Task 12) setzt das; bis dahin ist der Export-Knopf der Ansicht aus. */
+  actions: ExportActions | null = null;
 
   async onload(): Promise<void> {
     registerI18n();
     setLang(pickLang(readObsidianLocale()));
-    const raw: unknown = await this.loadData();
-    this.settings = { ...DEFAULT_SETTINGS, ...((raw ?? {}) as Partial<HtSettings>) };
+    this.settings = loadSettings(await this.loadData());
+
+    const host: HubHost = { settings: () => this.settings, actions: () => this.actions };
+    this.registerView(VIEW_TYPE_HT_HUB, (leaf: WorkspaceLeaf) => new HtHubView(leaf, host));
+    this.addRibbonIcon("globe", t("cmd.openView"), () => { void this.openView(); });
+    this.addCommand({ id: "open-view", name: t("cmd.openView"), callback: () => { void this.openView(); } });
+    this.addSettingTab(new HtSettingTab(this.app, this));
   }
 
   onunload(): void {
-    // Nothing registered yet; Obsidian removes everything added via the register* helpers.
+    // Ansicht, Befehl, Ribbon und Einstellungsreiter räumt Obsidian über die register*-Helfer ab.
+  }
+
+  async saveSettings(): Promise<void> {
+    await this.saveData(this.settings);
+    for (const leaf of this.app.workspace.getLeavesOfType(VIEW_TYPE_HT_HUB)) {
+      if (leaf.view instanceof HtHubView) leaf.view.refresh();
+    }
+  }
+
+  /** Öffnet die Ansicht (eine einzige, UI-STANDARD §1) und gibt sie zurück; Task 12 ruft darauf `showFindings`. */
+  async openView(): Promise<HtHubView | null> {
+    const { workspace } = this.app;
+    const existing = workspace.getLeavesOfType(VIEW_TYPE_HT_HUB);
+    const leaf = existing[0] ?? workspace.getRightLeaf(false);
+    if (!leaf) return null;
+    if (existing.length === 0) await leaf.setViewState({ type: VIEW_TYPE_HT_HUB, active: true });
+    void workspace.revealLeaf(leaf);
+    return leaf.view instanceof HtHubView ? leaf.view : null;
   }
 }

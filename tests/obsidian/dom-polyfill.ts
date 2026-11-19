@@ -24,4 +24,20 @@ export function installObsidianDom(): void {
   proto.appendText = function (this: Node, text: string) {
     this.appendChild(document.createTextNode(text));
   };
+  const el = Element.prototype as unknown as Record<string, unknown>;
+  el.createDiv = function (this: Element, o?: Info | string) {
+    const child = build('div', o);
+    this.appendChild(child);
+    return child;
+  };
+  el.createSpan = function (this: Element, o?: Info | string) {
+    const child = build('span', o);
+    this.appendChild(child);
+    return child;
+  };
+  el.empty = function (this: Element) { this.replaceChildren(); };
+  el.addClass = function (this: Element, ...cls: string[]) { this.classList.add(...cls); };
+  el.removeClass = function (this: Element, ...cls: string[]) { this.classList.remove(...cls); };
+  el.toggleClass = function (this: Element, cls: string, on: boolean) { this.classList.toggle(cls, on); };
+  el.setText = function (this: Element, text: string) { this.textContent = text; };
 }

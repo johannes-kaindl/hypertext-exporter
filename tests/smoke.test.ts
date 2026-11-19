@@ -1,7 +1,8 @@
 import { readFileSync } from "node:fs";
 import type { App, PluginManifest } from "obsidian";
 import { describe, expect, it } from "vitest";
-import HypertextExporterPlugin, { DEFAULT_SETTINGS } from "../src/main";
+import HypertextExporterPlugin from "../src/main";
+import { DEFAULT_SETTINGS } from "../src/obsidian/settings";
 
 const manifest = JSON.parse(readFileSync("manifest.json", "utf8")) as Record<string, unknown>;
 const pkg = JSON.parse(readFileSync("package.json", "utf8")) as Record<string, unknown>;
@@ -25,10 +26,15 @@ describe("manifest", () => {
 });
 
 describe("plugin", () => {
-  it("loads with default settings and unloads without registering a command", async () => {
+  it("loads with default settings, registers the one view and the open-view command, and unloads", async () => {
     const plugin = new HypertextExporterPlugin({} as App, {} as PluginManifest);
     await plugin.onload();
     expect(plugin.settings).toEqual(DEFAULT_SETTINGS);
+    const reg = (plugin as unknown as { registered: { views: string[]; commands: Array<{ id: string; name: string }>; settingTabs: unknown[] } }).registered;
+    expect(reg.views).toEqual(["hypertext-exporter-hub"]);
+    // Die übrigen Befehle (export-folder, export-current-note, …) kommen mit dem Ablauf (Task 12).
+    expect(reg.commands).toEqual([{ id: "open-view", name: "Open Hypertext Exporter" }]);
+    expect(reg.settingTabs).toHaveLength(1);
     expect(() => plugin.onunload()).not.toThrow();
   });
 });

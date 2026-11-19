@@ -2,7 +2,7 @@
   "source": "code-kit",
   "version": "0.78.0",
   "sha": "84820b7",
-  "vendored": "folder-scope.ts, rel-path.ts, name-order.ts, heading-title.ts, slug.ts, sha256.ts, data-url.ts, validate-input.ts, run-state.ts, cooperative-yield.ts, timeout.ts, i18n.ts, format-bytes.ts, fold-case.ts, run-exclusive.ts, filename-policy.ts, safe-markdown.ts, error-message.ts, svg-guard.ts",
+  "vendored": "folder-scope.ts, rel-path.ts, name-order.ts, heading-title.ts, slug.ts, sha256.ts, data-url.ts, validate-input.ts, run-state.ts, cooperative-yield.ts, timeout.ts, i18n.ts, format-bytes.ts, fold-case.ts, run-exclusive.ts, filename-policy.ts, safe-markdown.ts, error-message.ts, settings_schema.ts, num.ts, svg-guard.ts",
   "obsidian_kit_version": "0.99.1",
   "obsidian_kit_sha": "d5efe78",
   "obsidian_kit_vendored": "frontmatter.ts, mermaid-wait.ts, image-source.ts, filename-sanitizer-source.ts, code-blocks.ts",
