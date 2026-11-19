@@ -52,4 +52,19 @@ describe('finalCheck', () => {
     expect(codes(html)).toEqual(['error:final.forbidden', 'error:final.forbidden', 'warning:final.user-path', 'warning:final.user-path']);
     expect(codes(html)).toEqual(codes(html));
   });
+
+  it('meldet eine doppelte id als error mark.duplicate und einen toten Sprung als error mark.missing-target (Prüffunktion aus dem Kit, Bestellung 6)', () => {
+    const page = document.createElement('div');
+    page.innerHTML = '<h2 id="a">A</h2><h2 id="a">A2</h2><p><a href="#a">gut</a> <a href="#weg">tot</a></p>';
+    const out = finalCheck('<p>sauber</p>', page, null);
+    expect(out.map((f) => `${f.severity}:${f.code}`)).toEqual(['error:mark.duplicate', 'error:mark.missing-target']);
+    expect(out[0]?.message).toContain('a');
+    expect(out[1]?.message).toContain('#weg');
+  });
+
+  it('meldet bei eindeutigen Marken und lebenden Sprüngen nichts', () => {
+    const page = document.createElement('div');
+    page.innerHTML = '<main id="inhalt"><h2 id="a">A</h2><a href="#a">a</a><a href="#inhalt">i</a><a href="https://x.example/#y">aus</a></main>';
+    expect(finalCheck('<p>sauber</p>', page, null)).toEqual([]);
+  });
 });

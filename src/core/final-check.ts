@@ -1,5 +1,6 @@
 // Harte Endprüfung (Bauplan Task 10, Spec 10.4 und 10.8): sieht nur den fertigen Text der Seite.
-// Marken-Prüfung folgt mit Bestellung 6 (`mark.duplicate`, `mark.missing-target` über die ganze Seite); deshalb nimmt `page` noch keinen Einfluss.
+// Die Marken-Prüfung über die ganze Seite (`mark.duplicate`, `mark.missing-target`) macht allein die Kit-Funktion `checkAnchors` (Bestellung 6).
+import { checkAnchors } from '../vendor/kit/anchor-check';
 import { CODES } from './finding-codes';
 import type { Finding } from './types';
 
@@ -20,10 +21,9 @@ const USER_PATHS: Array<{ needle: string; message: string }> = [
  * `warning` `final.user-path` für `/Users/`, `/home/`, `C:\Users` (dürfen als Text einer Notiz vorkommen). Ein Befund je Muster, feste Reihenfolge.
  * Die Meldung nennt den Basispfad nie. `basePath` ist `null` oder leer, wo es keinen gibt (Handy): dann entfällt diese Prüfung.
  *
- * Marken-Prüfung folgt mit Bestellung 6; bis dahin bleibt `page` ungenutzt.
+ * Danach die Marken der fertigen Seite `page` über `checkAnchors` (Kit): jede doppelte id `error` `mark.duplicate`, jeder Sprung `#…` ohne Ziel `error` `mark.missing-target`, in der Reihenfolge des Kits.
  */
 export function finalCheck(html: string, page: HTMLElement, basePath: string | null): Finding[] {
-  void page;
   const findings: Finding[] = [];
   for (const { needle, message } of FORBIDDEN) {
     if (html.includes(needle)) findings.push({ severity: 'error', code: CODES.finalForbidden, message });
@@ -36,6 +36,13 @@ export function finalCheck(html: string, page: HTMLElement, basePath: string | n
   }
   for (const { needle, message } of USER_PATHS) {
     if (html.includes(needle)) findings.push({ severity: 'warning', code: CODES.finalUserPath, message });
+  }
+  for (const a of checkAnchors(page)) {
+    if (a.kind === 'duplicate-id') {
+      findings.push({ severity: 'error', code: CODES.markDuplicate, message: `Die Marke „${a.id}“ steht ${a.count}-mal auf der Seite.` });
+    } else {
+      findings.push({ severity: 'error', code: CODES.markMissingTarget, message: `Der Sprung ${a.href} („${a.text}“) hat kein Ziel auf der Seite.` });
+    }
   }
   return findings;
 }
