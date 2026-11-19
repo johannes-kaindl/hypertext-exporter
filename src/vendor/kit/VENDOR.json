@@ -1,10 +1,10 @@
 {
   "source": "code-kit",
-  "version": "0.82.0",
-  "sha": "4e12a8e",
+  "version": "0.83.0",
+  "sha": "49ea4c8",
   "vendored": "folder-scope.ts, rel-path.ts, name-order.ts, heading-title.ts, slug.ts, sha256.ts, data-url.ts, validate-input.ts, run-state.ts, cooperative-yield.ts, timeout.ts, i18n.ts, format-bytes.ts, fold-case.ts, run-exclusive.ts, filename-policy.ts, safe-markdown.ts, error-message.ts, settings_schema.ts, num.ts, html-escape.ts, frontmatter-field.ts, fences.ts, filename-template.ts, rotation.ts, svg-guard.ts, macrotask-pause.ts",
-  "obsidian_kit_version": "0.102.0",
-  "obsidian_kit_sha": "c8312d9",
-  "obsidian_kit_vendored": "frontmatter.ts, mermaid-wait.ts, image-source.ts, filename-sanitizer-source.ts, export-fold.ts, export-freeze.ts, export-links.ts, output-target.ts, plugin-id.ts, vault-path.ts, code-blocks.ts",
+  "obsidian_kit_version": "0.103.0",
+  "obsidian_kit_sha": "39780e3",
+  "obsidian_kit_vendored": "frontmatter.ts, mermaid-wait.ts, image-source.ts, filename-sanitizer-source.ts, export-fold.ts, export-freeze.ts, export-links.ts, output-target.ts, plugin-id.ts, vault-path.ts, export-prepare.ts, frontmatter-patch.ts, code-blocks.ts",
   "license": "AGPL-3.0-or-later"
 }

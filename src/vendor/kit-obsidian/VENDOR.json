@@ -1,7 +1,7 @@
 {
   "source": "obsidian-kit",
-  "version": "0.102.0",
-  "sha": "c8312d9",
+  "version": "0.103.0",
+  "sha": "39780e3",
   "vendored": "hub.ts, confirm.ts, folder-suggest.ts, settings_walker.ts, help-setting.ts, share-export.ts, safe-file-name.ts, inline-images.ts, status-indicator.ts, clock.ts, plugin-api.ts, setting-body-host.ts, render-note.ts, export-output.ts, export-progress.ts, replace-file-safely.ts, file-snapshot.ts",
   "license": "AGPL-3.0-or-later"
 }

@@ -1,4 +1,4 @@
-// vendored from obsidian-kit@0.102.0, src/pure/export-links.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
+// vendored from obsidian-kit@0.103.0, src/pure/export-links.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
 // export-links.ts — die Links einer gerenderten Notiz für eine Seite umschreiben, die eine MENGE von Notizen trägt. Kein `obsidian`-Import; rein bis auf die Änderung des übergebenen Baums.
 //
 // Warum hier und nicht in code-kit (erste Frage aus AGENTS.md): der Vertrag trägt zwei Annahmen über Obsidians gerendertes DOM (Messung 4a der Spec hypertext-exporter, 2026-11-18, Obsidian 1.15.1): `a.internal-link` trägt `href`

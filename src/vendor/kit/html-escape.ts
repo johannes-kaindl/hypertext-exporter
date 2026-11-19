@@ -1,4 +1,4 @@
-// vendored from code-kit@0.82.0, src/ts/pure/html-escape.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
+// vendored from code-kit@0.83.0, src/ts/pure/html-escape.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
 // Origin: lifted and aligned from seven private copies (Welle 36, h1, order 2 of the hypertext-exporter design, spec sections 7.2, 7.3, 10, 14). Measured 2026-11-19:
 //   epub-exporter       src/core/dom-to-xhtml.ts:32-37  escapeText / escapeAttr   (& < >  /  + ")
 //   epub-exporter       src/core/code-blocks.ts:59-64   escapeText / escapeAttr   (identical to the one above)
