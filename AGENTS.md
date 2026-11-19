@@ -2,7 +2,7 @@
 
 Orientierung für KI-Agenten (Claude Code, Codex, …) und Mitwirkende an diesem Repository. Workspace-weite Standards (comply-or-explain): siehe [`../../workspace/_docs/CONVENTIONS.md`](../../workspace/_docs/CONVENTIONS.md) (maintainer-lokal, nicht Teil dieses Repos — ignorieren, falls im Klon nicht vorhanden).
 
-**Stand 2026-11-19:** Gerüst nach Dach-Standard steht (Gates, kit-sync, Lizenzen), noch kein Feature. Spec und Bauplan liegen im Coding-Cockpit; der Bauplan zählt die Tasks, dies hier ist Task 1.
+**Stand 2026-11-19 (14:40):** Etappe 5 im Bau, Tasks 1 bis 6 und 8 bis 13 gebaut (Ablauf `runExport`, Befehle, Ansicht); offen sind der Schutzdurchgang (Task 7, wartet auf code-kit 0.86.0), der DOM-Läufer in `structure.ts` (wartet auf obsidian-kit 0.106.0) und die Abnahme (Task 14). Spec und Bauplan liegen im Coding-Cockpit; der Bauplan ist die SSOT für den Stand je Task.
 
 ## Project character
 
