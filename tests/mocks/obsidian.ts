@@ -12,17 +12,24 @@ export interface Registered {
 }
 
 export class Plugin {
-  app: unknown = {};
-  manifest: unknown = {};
+  app: unknown;
+  manifest: unknown;
+  constructor(app: unknown = {}, manifest: unknown = {}) { this.app = app; this.manifest = manifest; }
   registered: Registered = { views: [], commands: [], ribbons: [], settingTabs: [] };
   private data: unknown = null;
   loadData(): Promise<unknown> { return Promise.resolve(this.data); }
   saveData(data: unknown): Promise<void> { this.data = data; return Promise.resolve(); }
   registerView(type: string): void { this.registered.views.push(type); }
+  registerEvent(_ref: unknown): void {}
   addCommand(cmd: { id: string; name: string }): void { this.registered.commands.push({ id: cmd.id, name: cmd.name }); }
   addRibbonIcon(icon: string): void { this.registered.ribbons.push(icon); }
   addSettingTab(tab: unknown): void { this.registered.settingTabs.push(tab); }
 }
+
+// Dateimodell für `instanceof` im Dateimenü (src/obsidian/commands.ts); Tests setzen `path` selbst.
+export class TAbstractFile { path = ""; name = ""; }
+export class TFile extends TAbstractFile { extension = "md"; }
+export class TFolder extends TAbstractFile {}
 
 export function getLanguage(): string { return "en"; }
 

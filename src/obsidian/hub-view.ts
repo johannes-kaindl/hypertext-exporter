@@ -36,6 +36,7 @@ export class ExportPanel implements HubPanel<HubTabId> {
   private button: HTMLButtonElement | null = null;
   private buttonHelp: HTMLElement | null = null;
   private targetLine: HTMLElement | null = null;
+  private countLine: HTMLElement | null = null;
 
   constructor(private app: App, private host: HubHost) {}
 
@@ -48,6 +49,7 @@ export class ExportPanel implements HubPanel<HubTabId> {
   onShow(): void {
     // Einstellungen und Ablauf können sich seit dem Aufbau geändert haben (Plugin geladen, Einstellung gespeichert).
     this.refreshEntries();
+    this.refreshCount();
     this.refreshTarget();
     this.refreshButton();
   }
@@ -63,10 +65,18 @@ export class ExportPanel implements HubPanel<HubTabId> {
     this.root = null;
   }
 
+  /** Setzt den Quellordner von außen (Befehl „Export folder …“, Dateimenü); die Ansicht folgt danach nicht mehr der geöffneten Notiz. */
+  setSourceFolder(folder: string): void {
+    this.sourceTouched = true;
+    this.setSource(folder);
+    if (this.sourceInput !== null) this.sourceInput.value = folder;
+  }
+
   private setSource(folder: string): void {
     this.source = folder;
     this.entry = null;
     this.refreshEntries();
+    this.refreshCount();
     this.refreshButton();
   }
 
@@ -88,6 +98,7 @@ export class ExportPanel implements HubPanel<HubTabId> {
     });
     this.sourceInput = input;
     sourceField.createDiv({ cls: "ht-info", text: t("export.source.help") });
+    this.countLine = sourceField.createDiv({ cls: "ht-info ht-count" });
 
     const entryField = root.createDiv({ cls: "ht-field" });
     entryField.createEl("label", { text: t("export.entry.label"), attr: { for: "ht-entry" } });
@@ -114,15 +125,29 @@ export class ExportPanel implements HubPanel<HubTabId> {
     this.buttonHelp = root.createDiv({ cls: "ht-info ht-button-help" });
 
     this.refreshEntries();
+    this.refreshCount();
     this.refreshTarget();
     this.refreshButton();
+  }
+
+  /** Markdown-Dateien im Quellordner samt Unterordnern, nach Zeichenfolge des Pfads (Kit `pathsInFolder`). */
+  private notesInSource(): string[] {
+    return pathsInFolder(this.app.vault.getMarkdownFiles().map((f) => f.path), this.source).filter((p) => p.endsWith(".md"));
+  }
+
+  /** Zahl der Notizen im gewählten Ordner. Die geschätzte Größe fehlt bewusst: sie ginge nur mit dem Ablauf (Zeichnen und Einbetten der Medien). */
+  private refreshCount(): void {
+    if (this.countLine === null) return;
+    if (this.source === "") { this.countLine.setText(""); return; }
+    const n = this.notesInSource().length;
+    this.countLine.setText(n === 0 ? t("export.count.none") : n === 1 ? t("export.count.one") : t("export.count.many", n));
   }
 
   /** Einstiegsnotizen des Ordners: „Automatisch“ plus jede Markdown-Datei darin, nach Zeichenfolge des Pfads. */
   private refreshEntries(): void {
     const select = this.entrySelect;
     if (select === null) return;
-    const paths = pathsInFolder(this.app.vault.getMarkdownFiles().map((f) => f.path), this.source);
+    const paths = this.notesInSource();
     select.empty();
     select.createEl("option", { text: t("export.entry.auto"), attr: { value: "" } });
     for (const p of paths) select.createEl("option", { text: p, attr: { value: p } });
@@ -223,10 +248,12 @@ export class FindingsPanel implements HubPanel<HubTabId> {
 
 export class HtHubView extends ItemView {
   private hub: HubController<HubTabId> | null = null;
+  private exportPanel: ExportPanel;
   private findingsPanel: FindingsPanel;
 
   constructor(leaf: WorkspaceLeaf, private host: HubHost) {
     super(leaf);
+    this.exportPanel = new ExportPanel(this.app, this.host);
     this.findingsPanel = new FindingsPanel(this.app);
   }
 
@@ -236,12 +263,18 @@ export class HtHubView extends ItemView {
 
   onOpen(): Promise<void> {
     this.contentEl.addClass("ht-hub-view");
-    const panels: HubPanel<HubTabId>[] = [new ExportPanel(this.app, this.host), this.findingsPanel];
+    const panels: HubPanel<HubTabId>[] = [this.exportPanel, this.findingsPanel];
     this.hub = buildHubInto(this.contentEl, panels, "export");
     this.registerEvent(this.app.workspace.on("active-leaf-change", () => {
       this.hub?.notifyFileOpen(this.app.workspace.getActiveFile()?.path ?? null);
     }));
     return Promise.resolve();
+  }
+
+  /** Wechselt auf das Panel „Export“; mit `folder` setzt es den Quellordner (Befehl und Dateimenü). */
+  showExport(folder: string | null): void {
+    if (folder !== null) this.exportPanel.setSourceFolder(folder);
+    this.hub?.setTab("export");
   }
 
   /** Zeigt die Befunde eines Laufs und wechselt auf das Panel „Befunde“. */

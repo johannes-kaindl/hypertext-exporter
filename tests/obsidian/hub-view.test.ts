@@ -107,7 +107,7 @@ describe('ExportPanel', () => {
   it('listet die Notizen des Quellordners als Einstieg und ruft mit Ordner und Wahl den Ablauf', async () => {
     const exportFolder = vi.fn().mockResolvedValue(undefined);
     const { app } = fakeApp(['a/x.md', 'a/b/y.md', 'ab/z.md', 'root.md']);
-    const panel = new ExportPanel(app, host({ exportFolder }));
+    const panel = new ExportPanel(app, host({ exportFolder, exportNote: vi.fn(), checkExport: vi.fn(), openExport: vi.fn() }));
     const root = document.createElement('div');
     panel.mount(root);
     const button = root.querySelector('button') as HTMLButtonElement;
@@ -124,6 +124,47 @@ describe('ExportPanel', () => {
     select.dispatchEvent(new Event('change'));
     button.click();
     expect(exportFolder).toHaveBeenLastCalledWith('a', 'a/x.md');
+  });
+
+  it('zeigt die Zahl der Notizen im gewählten Ordner, samt Unterordnern und nur Markdown', () => {
+    const { app } = fakeApp(['a/x.md', 'a/b/y.md', 'a/b/c/z.md', 'ab/z.md', 'root.md', 'a/bild.png']);
+    const panel = new ExportPanel(app, host(null));
+    const root = document.createElement('div');
+    panel.mount(root);
+    const count = (): string | undefined => root.querySelector('.ht-count')?.textContent ?? undefined;
+    expect(count()).toBe('');
+    const input = root.querySelector('#ht-source') as HTMLInputElement;
+    input.value = 'a';
+    input.dispatchEvent(new Event('input'));
+    expect(count()).toBe('3 notes in this folder.');
+    input.value = 'a/b/c';
+    input.dispatchEvent(new Event('input'));
+    expect(count()).toBe('1 note in this folder.');
+    input.value = 'leer';
+    input.dispatchEvent(new Event('input'));
+    expect(count()).toBe('No notes in this folder.');
+  });
+
+  it('setSourceFolder setzt Ordner und Zahl von außen und lässt die Ansicht nicht mehr der Notiz folgen', () => {
+    const { app } = fakeApp(['a/x.md', 'a/y.md']);
+    const panel = new ExportPanel(app, host(null));
+    const root = document.createElement('div');
+    panel.mount(root);
+    panel.setSourceFolder('a');
+    expect((root.querySelector('#ht-source') as HTMLInputElement).value).toBe('a');
+    expect(root.querySelector('.ht-count')?.textContent).toBe('2 notes in this folder.');
+    panel.onFileOpen('anderswo/n.md');
+    expect((root.querySelector('#ht-source') as HTMLInputElement).value).toBe('a');
+  });
+
+  it('setSourceFolder vor dem Aufbau wirkt beim Aufbau', () => {
+    const { app } = fakeApp(['a/x.md']);
+    const panel = new ExportPanel(app, host(null));
+    panel.setSourceFolder('a');
+    const root = document.createElement('div');
+    panel.mount(root);
+    expect((root.querySelector('#ht-source') as HTMLInputElement).value).toBe('a');
+    expect(root.querySelector('.ht-count')?.textContent).toBe('1 note in this folder.');
   });
 
   it('folgt der geöffneten Notiz, bis der Nutzer den Ordner selbst setzt', () => {
@@ -156,5 +197,16 @@ describe('HtHubView', () => {
     expect(view.contentEl.querySelectorAll('li.ht-finding')).toHaveLength(1);
     await view.onClose();
     expect(view.contentEl.children).toHaveLength(0);
+  });
+  it('showExport wechselt auf das Panel Export und setzt den Ordner; null lässt ihn stehen', async () => {
+    const { app } = fakeApp(['a/x.md']);
+    const view = new HtHubView({ app } as unknown as WorkspaceLeaf, host(null));
+    await view.onOpen();
+    view.showFindings([F({})]);
+    view.showExport('a');
+    expect(view.contentEl.querySelector('.okit-hub-panel[data-tab="export"]')?.classList.contains('is-hidden')).toBe(false);
+    expect((view.contentEl.querySelector('#ht-source') as HTMLInputElement).value).toBe('a');
+    view.showExport(null);
+    expect((view.contentEl.querySelector('#ht-source') as HTMLInputElement).value).toBe('a');
   });
 });
