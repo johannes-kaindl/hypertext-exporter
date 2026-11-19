@@ -35,6 +35,7 @@ export const CODES = {
   finalUserPath: 'final.user-path',
   outputSize: 'output.size',
   outputOverLimit: 'output.over-limit',
+  outputWriteFailed: 'output.write-failed',
   headingCapped: 'heading.capped',
 } as const;
 
