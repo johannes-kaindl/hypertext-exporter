@@ -27,6 +27,7 @@
   "license": "AGPL-3.0-or-later",
   "devDependencies": {
     "@types/node": "^20.11.0",
+    "colord": "^2.14.0",
     "esbuild": "^0.20.0",
     "eslint": "^9.39.5",
     "eslint-plugin-obsidianmd": "^0.6.0",
