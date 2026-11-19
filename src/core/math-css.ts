@@ -1,7 +1,8 @@
 // MathJax-Stile für die Seite filtern und ordnen (Bauplan Task 10, Spec 4b "MathJax-Stile", 10.8).
 // Regel (Etappe 0, Zusatzmessung 5): feste Reihenfolge; Regeln mit Codepunkt-Selektoren (`.mjx-c<HEX>`) nur für benutzte Codepunkte;
 // `@font-face` nur für Schriftfamilien, die eine behaltene Regel nennt. Das Einbetten der Schriften als `data:` ist nicht Teil dieses
-// Moduls (es braucht `requestUrl`): die verbleibenden `url(...)` stehen unverändert im Ergebnis, je Adresse meldet ein Befund `math.font-url`.
+// Moduls (es braucht `requestUrl`): ein `@font-face` mit einer Adresse, die nicht `data:` ist, bleibt draußen (die Seite lädt nichts nach; gemessen 2026-11-19 am Beispielordner: sonst 24 blockierte
+// Schriftanfragen und 24 CSP-Verletzungen), je Adresse meldet ein Befund `math.font-url`. Formeln zeigen bis zum Einbetten die Ersatzschrift.
 // Rein: kein obsidian-Import. Zerlegt wird vom CSS-Zerleger des Kits (Bestellung 24, `css-rules`); hier steht nur, was dem Plugin gehört: der Filter nach `mjx-c<HEX>`, die Schriftfamilien und die Reihenfolge.
 import { parseCssRules, readCssUrls, splitCssList, type CssRule } from '../vendor/kit/css-rules';
 import { compareCodePoints } from '../vendor/kit/name-order';
@@ -95,14 +96,18 @@ function collectFonts(items: Item[], into: Set<string>): void {
   }
 }
 
-function render(items: Item[], families: ReadonlySet<string>): string[] {
+/** `dropped` sammelt die Adressen der Schriften, die nicht als `data:` vorliegen: ihr `@font-face` bleibt draußen, weil die Seite nichts nachlädt (Spec 4a, Erwartung 30). */
+function render(items: Item[], families: ReadonlySet<string>, dropped: Set<string>): string[] {
   const out: string[] = [];
   for (const it of items) {
     if (it.t === 'rule') out.push(it.text);
     else if (it.t === 'face') {
-      if (it.family !== null && families.has(it.family)) out.push(it.text);
+      if (it.family === null || !families.has(it.family)) continue;
+      const remote = remoteUrls(it.text);
+      if (remote.length === 0) out.push(it.text);
+      else for (const url of remote) dropped.add(url);
     } else {
-      const inner = render(it.items, families);
+      const inner = render(it.items, families, dropped);
       if (inner.length > 0) out.push(`${it.prelude} {\n${inner.join('\n')}\n}`);
     }
   }
@@ -125,7 +130,7 @@ function remoteUrls(css: string): string[] {
  * Filtert die MathJax-Stile (Inhalte der `<style>`-Elemente) auf die benutzten Codepunkte (Hex, wie in `mjx-c<HEX>`; Groß-/Kleinschreibung und führende Nullen sind gleich).
  * Das Ergebnis hängt nur von den Regeln ab, die bleiben: dieselben Codepunkte ergeben dieselbe Zeichenkette, egal welche weiteren Zeichenregeln die Eingabe trägt;
  * die Reihenfolge der Eingabe-Elemente ändert nichts (gleiche Blätter fallen zusammen, die Blätter werden nach Zeichenfolge geordnet).
- * Befunde: `info` `math.font-url` je verbleibender Schrift-Adresse (das Einbetten folgt später).
+ * Befunde: `info` `math.font-url` je Schrift-Adresse, deren `@font-face` draußen bleibt, nach Zeichenfolge, dann je übriger Adresse in Regeln (das Einbetten folgt später).
  */
 export function filterMathCss(styles: string[], usedCodepoints: Set<string>): { css: string; findings: Finding[] } {
   const used = new Set<string>();
@@ -136,16 +141,18 @@ export function filterMathCss(styles: string[], usedCodepoints: Set<string>): { 
   for (const tree of trees) collectFonts(tree, families);
 
   const sheets = new Set<string>();
+  const dropped = new Set<string>();
   for (const tree of trees) {
-    const text = render(tree, families).join('\n');
+    const text = render(tree, families, dropped).join('\n');
     if (text !== '') sheets.add(text);
   }
   const css = Array.from(sheets).sort(compareCodePoints).join('\n');
 
-  const findings: Finding[] = remoteUrls(css).map((url) => ({
+  const urls = new Set<string>([...Array.from(dropped).sort(compareCodePoints), ...remoteUrls(css)]);
+  const findings: Finding[] = Array.from(urls).map((url) => ({
     severity: 'info',
     code: CODES.mathFontUrl,
-    message: `Mathe-Schrift noch nicht eingebettet: ${url}`,
+    message: `Mathe-Schrift nicht eingebettet, Formeln zeigen die Ersatzschrift: ${url}`,
   }));
   return { css, findings };
 }

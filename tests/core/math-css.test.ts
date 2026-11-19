@@ -48,24 +48,30 @@ describe('filterMathCss', () => {
     expect(css).toContain('mjx-c::before');
   });
 
-  it('behält @font-face nur für Familien, die eine behaltene Regel nennt', () => {
-    const { css } = filterMathCss([chtml(CHAR.a, CHAR.bold)], cps('1D44E'));
-    expect(css).toContain('font-family: MJXZERO;');
-    expect(css).toContain('font-family: MJXTEX;');
-    expect(css).toContain('font-family: MJXTEX-I;');
-    expect(css).not.toContain('font-family: MJXTEX-B;');
+  it('meldet nur Schriften der Familien, die eine behaltene Regel nennt', () => {
+    const { css, findings } = filterMathCss([chtml(CHAR.a, CHAR.bold)], cps('1D44E'));
     expect(css).not.toContain('mjx-tex-b.woff2');
+    expect(findings.map((f) => f.message).join(' ')).not.toContain('mjx-tex-b.woff2');
+    expect(findings.map((f) => f.message).join(' ')).toContain('mjx-tex-i.woff2');
   });
 
-  it('nennt jede verbleibende Schrift-Adresse einmal als info math.font-url, in Reihenfolge des Vorkommens', () => {
-    const { findings } = filterMathCss([chtml(CHAR.a)], cps('1D44E'));
+  it('nimmt ein @font-face mit einer Adresse, die nicht data: ist, aus der Seite (sie lädt nichts nach, Erwartung 30) und meldet jede Adresse einmal als info math.font-url, nach Zeichenfolge', () => {
+    const { css, findings } = filterMathCss([chtml(CHAR.a)], cps('1D44E'));
+    expect(css).not.toContain('@font-face');
+    expect(css).not.toContain('/lib/mathjax');
+    expect(css).toContain('mjx-c1D44E');
     expect(findings.map((f) => f.code)).toEqual([CODES.mathFontUrl, CODES.mathFontUrl, CODES.mathFontUrl]);
     expect(findings.every((f) => f.severity === 'info')).toBe(true);
     expect(findings.map((f) => f.message)).toEqual([
-      expect.stringContaining('/lib/mathjax/tex-font/chtml/woff2/mjx-tex-zero.woff2'),
-      expect.stringContaining('/lib/mathjax/tex-font/chtml/woff2/mjx-tex-n.woff2'),
       expect.stringContaining('/lib/mathjax/tex-font/chtml/woff2/mjx-tex-i.woff2'),
+      expect.stringContaining('/lib/mathjax/tex-font/chtml/woff2/mjx-tex-n.woff2'),
+      expect.stringContaining('/lib/mathjax/tex-font/chtml/woff2/mjx-tex-zero.woff2'),
     ]);
+  });
+
+  it('behält ein @font-face, dessen Quelle data: ist', () => {
+    const css = '@font-face { font-family: Eigen; src: url(data:font/woff2;base64,AAAA); }\n.x { font-family: Eigen; }';
+    expect(filterMathCss([css], cps()).css).toContain('@font-face');
   });
 
   it('meldet keine Adresse für data:-Schriften und keine für entfernte Regeln', () => {
@@ -110,11 +116,12 @@ describe('filterMathCss', () => {
   });
 
   it('ohne benutzte Codepunkte bleiben nur die festen Regeln und die Schriften, die sie nennen', () => {
-    const { css } = filterMathCss([chtml(CHAR.a, CHAR.two)], cps());
+    const { css, findings } = filterMathCss([chtml(CHAR.a, CHAR.two)], cps());
     expect(css).not.toContain('mjx-c1D44E');
     expect(css).not.toContain('mjx-c32');
-    expect(css).toContain('font-family: MJXTEX;');
-    expect(css).not.toContain('font-family: MJXTEX-I;');
+    const urls = findings.map((f) => f.message).join(' ');
+    expect(urls).toContain('mjx-tex-n.woff2');
+    expect(urls).not.toContain('mjx-tex-i.woff2');
   });
 
   it('filtert Selektorlisten je Selektor und lässt die Regel stehen, solange einer bleibt', () => {
