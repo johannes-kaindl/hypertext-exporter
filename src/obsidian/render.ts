@@ -1,10 +1,11 @@
-// Je Notiz zeichnen (Bauplan Task 6 und 7, Spec 10.2 Schritt 2b bis 5): Vorbehandlung, Zeichnen über das Kit, Einbettungen prüfen, Einfrieren (Schutzdurchgang folgt mit Bestellung 11).
+// Je Notiz zeichnen (Bauplan Task 6 und 7, Spec 10.2 Schritt 2b bis 5): Vorbehandlung, Zeichnen über das Kit, Einbettungen prüfen, Einfrieren, Schutzdurchgang.
 // Gezeichnet wird ausschließlich von `withRenderedNote` (Kit, Bestellung 1): Host, Frist, Mermaid-Wartezeit, Ruhe-Regel und Fenstercheck liegen dort. Hier steht nur,
 // was plugin-eigene Typen trägt: die Übersetzung der Kit-Befunde in `Finding`, die Prüfung der Einbettungen gegen die Menge und der Ablauf je Notiz.
 import { parseLinktext, stripHeading, type App, type TFile } from 'obsidian';
 import { CODES } from '../core/finding-codes';
 import type { Finding, Recipe, RunControl, SetNote } from '../core/types';
 import { prepareExportMarkdown } from '../vendor/kit/export-prepare';
+import { guardExportTree, type ExportGuardFinding } from '../vendor/kit/export-guard';
 import { freezeRenderedDom, type ExportFreezeFinding, type ExportFreezePorts } from '../vendor/kit/export-freeze';
 import { RENDER_NOTE_CSS, withRenderedNote, type RenderNoteFinding, type RenderNotePorts } from '../vendor/kit-obsidian/render-note';
 
@@ -76,14 +77,44 @@ export function translateFreezeFinding(f: ExportFreezeFinding, notePath: string)
   }
 }
 
+const GUARD_KIND_TEXT: Record<ExportGuardFinding['kind'], string> = {
+  element: 'aktive Elemente',
+  attribute: 'Attribute mit Ereignis oder Skriptziel',
+  declaration: 'Stilangaben mit Ladeziel',
+  svg: 'Zeichnungen (SVG), die der Prüfer ablehnte',
+  comment: 'Kommentare, die sich selbst beenden könnten',
+};
+
+/** Kit-Befunde des Schutzdurchgangs, je Art zu einem `guard.removed` mit Zahl zusammengefasst (sonst wüchse die Befundliste mit jedem `onclick`). */
+export function translateGuardFindings(found: readonly ExportGuardFinding[], notePath: string): Finding[] {
+  const order: ExportGuardFinding['kind'][] = ['element', 'attribute', 'declaration', 'svg', 'comment'];
+  const out: Finding[] = [];
+  for (const kind of order) {
+    const hits = found.filter((f) => f.kind === kind);
+    if (hits.length === 0) continue;
+    const names = new Map<string, number>();
+    for (const h of hits) {
+      const label = h.name !== undefined ? `${h.name} an ${h.element}` : h.element;
+      names.set(label, (names.get(label) ?? 0) + 1);
+    }
+    const list = Array.from(names, ([label, n]) => (n > 1 ? `${label} ×${n}` : label)).join(', ');
+    out.push({
+      // Eine abgelehnte Zeichnung fehlt in der Seite und verdient mehr als einen Hinweis.
+      severity: kind === 'svg' ? 'warning' : 'info',
+      code: CODES.guardRemoved,
+      message: `${hits.length} ${GUARD_KIND_TEXT[kind]} entfernt (${list})`,
+      notePath,
+    });
+  }
+  return out;
+}
+
 /**
- * Die Naht für Kit-Bestellung 11 (Schutzdurchgang, Spec 10.2 Schritt 5): Skripte, Ereignis-Attribute, `javascript:`-Ziele und Rahmen aus dem eingefrorenen Baum entfernen,
- * jedes Entfernte als `guard.removed`. Bis das Kit sie liefert, ändert sie nichts. Hier, und nur hier, wird 11 eingesetzt.
+ * Schutzdurchgang (Kit-Bestellung 11, Spec 10.2 Schritt 5): Skripte, Ereignis-Attribute, `javascript:`-Ziele und Rahmen aus dem eingefrorenen Baum entfernen.
+ * Der Kit-Durchgang verlangt einen Baum ohne Fenster; `root` ist der losgelöste Behälter, nicht der Host des Zeichners.
  */
 function protectTree(root: HTMLElement, note: SetNote): Finding[] {
-  void root;
-  void note;
-  return [];
+  return translateGuardFindings(guardExportTree(root), note.path);
 }
 
 /** Alle Textknoten unter `node` in Dokumentreihenfolge (ohne `document`, damit der Baum auch losgelöst durchsucht wird). */
@@ -208,8 +239,9 @@ export async function renderNote(app: App, note: SetNote, recipe: Recipe, run: R
       // Eine Einbettung ohne Ziel (`mod-empty`) hat der Zeichner schon als `embed.missing` gemeldet; nicht noch einmal als leerer Block.
       const unreported = frozen.findings.filter((f) => !(f.kind === 'empty-block' && f.what === 'embed' && /\bmod-empty/.test(f.hint)));
       findings.push(...unreported.map((f) => translateFreezeFinding(f, note.path)));
-      findings.push(...protectTree(rendered.root, note));
+      // Erst lösen, dann schützen: der Kit-Durchgang braucht einen Baum, der an keinem Fenster hängt.
       root.append(...Array.from(rendered.root.childNodes));
+      findings.push(...protectTree(root, note));
       return { root, findings };
     },
   );
