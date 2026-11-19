@@ -1,4 +1,4 @@
-// vendored from code-kit@0.86.0, src/ts/web/export-guard.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
+// vendored from code-kit@0.86.1, src/ts/web/export-guard.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
 import { parseCssDeclarations, parseCssRules, readCssUrls, type CssDeclaration } from "./css-rules";
 import { trimUrlLikeBrowser } from "./safe-markdown";
 import { linkScheme } from "./link-guard";
@@ -138,7 +138,8 @@ export function guardExportTree(root: ParentNode, options: ExportGuardOptions = 
       if (name === "style" && el.namespaceURI !== SVG_NS && !styleElementIsSafe(el.textContent ?? "")) { cut(el, name, "style element with a load, an import or a break-out"); continue; }
       if (inlineSvgOutsideSvg(el)) {
         const checked = checkSvg(new XMLSerializer().serializeToString(el), options.svg);
-        if (checked.ok) { el.replaceWith((el.ownerDocument ?? document).importNode(checked.svg, true)); }
+        // An Element always has its document: no fallback to the global one (a consumer's store lint, obsidianmd/prefer-active-doc, flags it).
+        if (checked.ok) { el.replaceWith(el.ownerDocument.importNode(checked.svg, true)); }
         else cut(el, "svg", `refused by checkSvg: ${checked.problems[0]?.code ?? "unknown"} ${checked.problems[0]?.detail ?? ""}`.trim(), "svg");
         continue;
       }

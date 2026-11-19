@@ -1,4 +1,4 @@
-// vendored from code-kit@0.86.0, src/ts/pure/csp.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
+// vendored from code-kit@0.86.1, src/ts/pure/csp.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
 // Origin: lifted from four private Content-Security-Policy strings (Welle 36, h1c, order 4 of the hypertext-exporter plan, spec 7.2, 7.3, 10, 14). Measured 2026-11-19:
 //   obsidian-paperize    src/obsidian/export-desktop.ts:26   PRINT_CSP          default-src 'none'; style-src 'unsafe-inline' https:; font-src data: https:; img-src data: https:
 //   obsidian-kit         pilot/papier-profil.ts:18           CSP                (the same string as paperize: the pilot prints what paperize prints)

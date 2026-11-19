@@ -1,7 +1,7 @@
 {
   "source": "code-kit",
-  "version": "0.86.0",
-  "sha": "f685dd9",
+  "version": "0.86.1",
+  "sha": "8d96928",
   "vendored": "folder-scope.ts, rel-path.ts, name-order.ts, heading-title.ts, slug.ts, sha256.ts, data-url.ts, validate-input.ts, run-state.ts, cooperative-yield.ts, timeout.ts, i18n.ts, format-bytes.ts, fold-case.ts, run-exclusive.ts, filename-policy.ts, safe-markdown.ts, error-message.ts, settings_schema.ts, num.ts, html-escape.ts, frontmatter-field.ts, fences.ts, filename-template.ts, rotation.ts, folder-tree.ts, csp.ts, field-template.ts, screen-document.ts, anchor-marks.ts, css-rules.ts, svg-guard.ts, macrotask-pause.ts, anchor-check.ts, export-guard.ts, link-guard.ts, leave-tree.ts",
   "obsidian_kit_version": "0.104.0",
   "obsidian_kit_sha": "196e4ce",
