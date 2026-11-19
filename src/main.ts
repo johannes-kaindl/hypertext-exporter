@@ -3,6 +3,7 @@ import { registerI18n } from "./i18n/strings";
 import { pickLang, setLang, t } from "./vendor/kit/i18n";
 import type { ExportActions } from "./obsidian/actions";
 import { HtHubView, VIEW_TYPE_HT_HUB, type HubHost } from "./obsidian/hub-view";
+import { insertRecipeCheck } from "./obsidian/insert-recipe";
 import { HtSettingTab, loadSettings, DEFAULT_SETTINGS, type HtSettings } from "./obsidian/settings";
 
 function readObsidianLocale(): string | null {
@@ -23,6 +24,7 @@ export default class HypertextExporterPlugin extends Plugin {
     this.registerView(VIEW_TYPE_HT_HUB, (leaf: WorkspaceLeaf) => new HtHubView(leaf, host));
     this.addRibbonIcon("globe", t("cmd.openView"), () => { void this.openView(); });
     this.addCommand({ id: "open-view", name: t("cmd.openView"), callback: () => { void this.openView(); } });
+    this.addCommand({ id: "insert-recipe", name: t("cmd.insertRecipe"), checkCallback: insertRecipeCheck(this.app, () => readObsidianLocale() ?? "en") });
     this.addSettingTab(new HtSettingTab(this.app, this));
   }
 

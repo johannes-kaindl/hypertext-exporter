@@ -75,3 +75,24 @@ export function parseLinktext(linktext: string): { path: string; subpath: string
 export function stripHeading(heading: string): string {
   return heading.replace(/[!"#$%&()*+,.:;<=>?@^`{|}~/[\]\\]/g, " ").replace(/\s+/g, " ").trim();
 }
+
+// Für das vendorte confirm.ts (class ConfirmModal extends Modal) und die Meldungen des Befehls „Insert export recipe“. Tests reichen das Bestätigen selbst durch; hier nur, damit der Import auflöst.
+export class Modal {
+  titleEl: HTMLElement = makeEl();
+  contentEl: HTMLElement = makeEl();
+  constructor(public app: unknown) {}
+  open(): void {}
+  close(): void {}
+}
+export class ButtonComponent {
+  buttonEl: HTMLElement = makeEl();
+  constructor(_el: HTMLElement) { void _el; }
+  setButtonText(): this { return this; }
+  onClick(): this { return this; }
+  setCta(): this { return this; }
+}
+/** Merkt die Texte aller Meldungen; Tests lesen `Notice.messages` und leeren sie vorher. */
+export class Notice {
+  static messages: string[] = [];
+  constructor(message: string) { Notice.messages.push(message); }
+}

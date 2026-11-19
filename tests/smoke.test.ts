@@ -26,14 +26,17 @@ describe("manifest", () => {
 });
 
 describe("plugin", () => {
-  it("loads with default settings, registers the one view and the open-view command, and unloads", async () => {
+  it("loads with default settings, registers the one view, the open-view and the insert-recipe command, and unloads", async () => {
     const plugin = new HypertextExporterPlugin({} as App, {} as PluginManifest);
     await plugin.onload();
     expect(plugin.settings).toEqual(DEFAULT_SETTINGS);
     const reg = (plugin as unknown as { registered: { views: string[]; commands: Array<{ id: string; name: string }>; settingTabs: unknown[] } }).registered;
     expect(reg.views).toEqual(["hypertext-exporter-hub"]);
-    // Die übrigen Befehle (export-folder, export-current-note, …) kommen mit dem Ablauf (Task 12).
-    expect(reg.commands).toEqual([{ id: "open-view", name: "Open Hypertext Exporter" }]);
+    // Die übrigen Befehle (export-folder, export-current-note, check-export, open-export, …) kommen mit dem Ablauf (Task 12).
+    expect(reg.commands).toEqual([
+      { id: "open-view", name: "Open Hypertext Exporter" },
+      { id: "insert-recipe", name: "Insert export recipe" },
+    ]);
     expect(reg.settingTabs).toHaveLength(1);
     expect(() => plugin.onunload()).not.toThrow();
   });

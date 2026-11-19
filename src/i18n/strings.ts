@@ -5,6 +5,15 @@ export const EN: Record<string, string> = {
 
   "view.title": "Hypertext Exporter",
   "cmd.openView": "Open Hypertext Exporter",
+  "cmd.insertRecipe": "Insert export recipe",
+  "insert.confirm.title": "Insert export recipe",
+  "insert.confirm.message": "Add a hypertext block to the front matter of {0}, with the default values for the folder {1}? The rest of the front matter stays as it is.",
+  "insert.confirm.button": "Insert",
+  "insert.confirm.cancel": "Cancel",
+  "insert.rootFolder": "(vault root)",
+  "insert.exists": "This note already has a hypertext block. Nothing was changed.",
+  "insert.done": "Export recipe inserted into {0}.",
+  "insert.failed": "The export recipe could not be inserted. The front matter of this note is not in a form the plugin can extend safely.",
 
   "hub.tab.export": "Export",
   "hub.tab.findings": "Findings",
@@ -55,6 +64,15 @@ export const DE: Record<string, string> = {
 
   "view.title": "Hypertext Exporter",
   "cmd.openView": "Hypertext Exporter öffnen",
+  "cmd.insertRecipe": "Export-Bauanleitung einfügen",
+  "insert.confirm.title": "Export-Bauanleitung einfügen",
+  "insert.confirm.message": "Einen Block hypertext mit den Standardwerten für den Ordner {1} in das Frontmatter von {0} schreiben? Der Rest des Frontmatters bleibt unverändert.",
+  "insert.confirm.button": "Einfügen",
+  "insert.confirm.cancel": "Abbrechen",
+  "insert.rootFolder": "(Wurzel des Vaults)",
+  "insert.exists": "Diese Notiz hat schon einen Block hypertext. Es wurde nichts geändert.",
+  "insert.done": "Bauanleitung in {0} eingefügt.",
+  "insert.failed": "Die Bauanleitung ließ sich nicht einfügen. Das Frontmatter dieser Notiz hat eine Form, die das Plugin nicht sicher erweitern kann.",
 
   "hub.tab.export": "Export",
   "hub.tab.findings": "Befunde",

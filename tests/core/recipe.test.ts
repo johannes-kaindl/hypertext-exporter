@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { CODES } from '../../src/core/finding-codes';
-import { DEFAULT_RECIPE, notYetFindings } from '../../src/core/recipe';
-import type { Recipe } from '../../src/core/types';
+import { DEFAULT_RECIPE, notYetFindings, recipeYaml } from '../../src/core/recipe';
+import type { NoteInput, Recipe } from '../../src/core/types';
 
 describe('DEFAULT_RECIPE', () => {
   it('hat genau die Standardwerte aus Spec 10.10 plus lang en', () => {
@@ -45,5 +45,50 @@ describe('notYetFindings', () => {
 
   it('meldet stamp full und output file nicht', () => {
     expect(notYetFindings({ ...DEFAULT_RECIPE, stamp: 'full', output: 'file' })).toEqual([]);
+  });
+});
+
+const noteAt = (path: string): NoteInput => ({ path, frontmatter: {}, body: '', links: [] });
+
+describe('recipeYaml', () => {
+  const notes = ['Projekt/b/x.md', 'Projekt/a/y.md', 'Projekt/Ä/z.md', 'Projekt/Ä/w.md', 'Projekt/lose.md', 'Andere/q/x.md', 'Projekt2/c/x.md', 'Projekt/a/tief/n.md'].map(noteAt);
+
+  it('schreibt version, lang und je Unterordner einen folder-Eintrag in Namensordnung (a, b, Ä), nichts sonst', () => {
+    expect(recipeYaml('Projekt', notes, 'de')).toBe(
+      ['  version: 1', '  lang: de', '  sections:', '    - folder: a', '    - folder: b', '    - folder: Ä'].join('\n'),
+    );
+  });
+
+  it('die Reihenfolge hängt nicht von der Reihenfolge der Eingabe ab', () => {
+    expect(recipeYaml('Projekt', [...notes].reverse(), 'de')).toBe(recipeYaml('Projekt', notes, 'de'));
+  });
+
+  it('lang ist de nur bei der Obsidian-Sprache de, sonst en', () => {
+    expect(recipeYaml('Projekt', notes, 'de')).toContain('lang: de');
+    expect(recipeYaml('Projekt', notes, 'fr')).toContain('lang: en');
+    expect(recipeYaml('Projekt', notes, 'fr')).not.toContain('lang: de');
+    expect(recipeYaml('Projekt', notes, 'en')).toContain('lang: en');
+  });
+
+  it('ordnet Zahlenpräfixe nach Wert, nicht nach Text', () => {
+    const n = ['O/10 Zehn/x.md', 'O/2 Zwei/x.md', 'O/1 Eins/x.md'].map(noteAt);
+    expect(recipeYaml('O', n, 'en').split('\n').filter((l) => l.includes('folder'))).toEqual(['    - folder: 1 Eins', '    - folder: 2 Zwei', '    - folder: 10 Zehn']);
+  });
+
+  it('quotet Ordnernamen, die YAML sonst anders läse', () => {
+    const n = ['O/2024/x.md', 'O/a: b/x.md', 'O/true/x.md', 'O/x #y/x.md'].map(noteAt);
+    const lines = recipeYaml('O', n, 'en').split('\n').filter((l) => l.includes('folder'));
+    expect(lines).toContain('    - folder: "2024"');
+    expect(lines).toContain('    - folder: "a: b"');
+    expect(lines).toContain('    - folder: "true"');
+    expect(lines).toContain('    - folder: "x #y"');
+  });
+
+  it('ein Ordner ohne Unterordner schreibt kein sections', () => {
+    expect(recipeYaml('Projekt', [noteAt('Projekt/lose.md')], 'en')).toBe('  version: 1\n  lang: en');
+  });
+
+  it('der Wurzelordner nimmt die Ordner oberster Ebene', () => {
+    expect(recipeYaml('', [noteAt('b/x.md'), noteAt('a/x.md'), noteAt('lose.md')], 'en')).toBe('  version: 1\n  lang: en\n  sections:\n    - folder: a\n    - folder: b');
   });
 });
