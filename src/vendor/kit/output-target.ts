@@ -1,4 +1,4 @@
-// vendored from obsidian-kit@0.104.0, src/pure/output-target.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
+// vendored from obsidian-kit@0.106.0, src/pure/output-target.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
 // Ziel der Ausgabe, reiner Teil (Welle 36, h2b, Bestellung 13 der Design-Linie hypertext; gehoben aus epub-exporter@e6f3a42 `src/core/output-path.ts`, dort `resolveOutputPath` und `sanitizeBase`).
 //
 // Vier Ziele, die jeder Exporter kennt: `besideNote` (Ordner der Notiz), `attachmentFolder` (der Pfad, den Obsidians `getAvailablePathForAttachment` schon aufgelöst hat), `customFolder` (ein Ordner aus

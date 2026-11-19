@@ -1,4 +1,4 @@
-// vendored from obsidian-kit@0.104.0, src/pure/export-fold.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
+// vendored from obsidian-kit@0.106.0, src/pure/export-fold.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
 // export-fold.ts — Aufklapp-Umbau eines gerenderten Baums für den Export: Callouts mit Faltzeichen, Überschriftsabschnitte und beliebige Bereiche werden `<details>` mit `<summary>`. Kein `obsidian`-Import.
 //
 // Warum hier und nicht in code-kit (erste Frage aus AGENTS.md): der Vertrag liest Obsidians gerendertes Callout-DOM (Messung 4a der Spec hypertext-exporter, 2026-11-18, Obsidian 1.15.1): ein eingeklappter Callout rendert seinen Inhalt

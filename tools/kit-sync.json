@@ -1,7 +1,7 @@
 {
   "sources": {
     "obsidian-kit": {
-      "ref": "0.104.0"
+      "ref": "0.106.0"
     },
     "code-kit": {
       "ref": "0.86.1"
@@ -62,7 +62,8 @@
         "plugin-id",
         "vault-path",
         "export-prepare",
-        "frontmatter-patch"
+        "frontmatter-patch",
+        "anchor-walk"
       ],
       "rewrite": [
         [
