@@ -29,7 +29,7 @@ npm run check:no-node      # kein Node-Modul in src/ (ohne src/vendor), Gegenpro
 npm run lint               # check-no-inline-disables + eslint src (eslint-plugin-obsidianmd), 0 Warnungen
 npm run build              # esbuild --production → main.js
 npm run gate               # typecheck + typecheck:test + typecheck:scripts + test + check:pure + check:no-node + lint + build — vor jedem Commit
-npm run smoke:gui          # folgt mit Task 2 (Treiber gegen eine Zweitinstanz)
+npm run smoke:gui -- --port <9845..9849>   # Treiber gegen eine laufende Zweitinstanz; gestartet wird über messlauf.sh (siehe Gotchas), --list zeigt den Vertrag, --gegenprobe schaltet das Plugin vor P1 ab
 sh tools/sync-kit.sh       # Kit vendoren (Pins in tools/kit-sync.json); --check vergleicht nur
 ```
 
@@ -44,6 +44,7 @@ sh tools/sync-kit.sh       # Kit vendoren (Pins in tools/kit-sync.json); --check
 
 ## Gotchas
 
+- **GUI-Smoke (eine Befehlszeile, Staging-Vault `hypertext-exporter-smoke`, Port 9845, Ausweichport 9846):** `export REPO=hypertext-exporter VAULT=hypertext-exporter-smoke PORT=9845 SETUP_MIT_PORT=1 && python3 ~/.claude/hooks/obsidian-cdp-lock.py acquire --label hypertext-exporter --intent "GUI-Smoke" --exclusive all --port 9845 --ttl 300 --warten 540 && ../tools/obsidian-cdp/messlauf.sh` (aus dem Repo, im Hintergrund; Gegenprobe mit `SMOKE_ARGS=--gegenprobe`). Der Vault `hypertext-exporter` gehört der Messung und trägt private Daten, der Smoke fasst ihn nicht an.
 - **focus-crew-Daten kommen in kein Repo und in keinen Commit** (Abnahmefall 1 liegt nur im Cache-Ordner und im Staging-Vault).
 - `src/vendor/` gehört kit-sync: `node ../tools/kit-sync/kit-sync.mjs --check` muss grün sein, Handänderungen fallen dort auf.
 - `grep` ist auf diesem Rechner ugrep und respektiert `.gitignore`; Gegenprobe mit einem Begriff, der sicher irgendwo steht.
