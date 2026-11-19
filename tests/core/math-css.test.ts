@@ -95,6 +95,14 @@ describe('filterMathCss', () => {
     for (const s of sheets) expect(first).toContain(s.trim().split('\n')[0] as string);
   });
 
+  it('ordnet Blätter nach Codepunkt und nicht nach UTF-16-Einheit: U+FF5E vor U+1F600', () => {
+    const emoji = ':root {\n  --x: "\u{1F600}";\n}';
+    const tilde = ':root {\n  --x: "\uFF5E";\n}';
+    const expected = `${tilde}\n${emoji}`;
+    expect(filterMathCss([emoji, tilde], cps()).css).toBe(expected);
+    expect(filterMathCss([tilde, emoji], cps()).css).toBe(expected);
+  });
+
   it('zweimal dasselbe Blatt ergibt es einmal; zwei Aufrufe sind gleich', () => {
     const once = filterMathCss([chtml(CHAR.a)], cps('1D44E'));
     expect(filterMathCss([chtml(CHAR.a), chtml(CHAR.a)], cps('1D44E')).css).toBe(once.css);

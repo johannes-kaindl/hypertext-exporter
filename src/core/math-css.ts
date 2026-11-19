@@ -3,6 +3,7 @@
 // `@font-face` nur für Schriftfamilien, die eine behaltene Regel nennt. Das Einbetten der Schriften als `data:` ist nicht Teil dieses
 // Moduls (es braucht `requestUrl`): die verbleibenden `url(...)` stehen unverändert im Ergebnis, je Adresse meldet ein Befund `math.font-url`.
 // Rein: kein obsidian-Import. Der CSS-Zerleger ist absichtlich klein, einmal durch den Text (linear) und nicht exportiert.
+import { compareCodePoints } from '../vendor/kit/name-order';
 import { CODES } from './finding-codes';
 import type { Finding } from './types';
 
@@ -252,10 +253,6 @@ function remoteUrls(css: string): string[] {
   return urls;
 }
 
-function compareCodeUnits(a: string, b: string): number {
-  return a < b ? -1 : a > b ? 1 : 0;
-}
-
 /**
  * Filtert die MathJax-Stile (Inhalte der `<style>`-Elemente) auf die benutzten Codepunkte (Hex, wie in `mjx-c<HEX>`; Groß-/Kleinschreibung und führende Nullen sind gleich).
  * Das Ergebnis hängt nur von den Regeln ab, die bleiben: dieselben Codepunkte ergeben dieselbe Zeichenkette, egal welche weiteren Zeichenregeln die Eingabe trägt;
@@ -275,7 +272,7 @@ export function filterMathCss(styles: string[], usedCodepoints: Set<string>): { 
     const text = render(tree, families).join('\n');
     if (text !== '') sheets.add(text);
   }
-  const css = Array.from(sheets).sort(compareCodeUnits).join('\n');
+  const css = Array.from(sheets).sort(compareCodePoints).join('\n');
 
   const findings: Finding[] = remoteUrls(css).map((url) => ({
     severity: 'info',

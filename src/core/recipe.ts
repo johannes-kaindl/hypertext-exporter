@@ -1,6 +1,6 @@
 // Bauanleitung (Spec 10.10). Lesen (`parseRecipe`) wartet auf die Kit-Bestellungen 3 (Alias-Felder) und 12 (inputIssues verschachtelt); hier nur Standardwerte und Hinweise.
 import { quoteScalar } from '../vendor/kit/frontmatter';
-import { compareOrderedNames, parseOrderedName } from '../vendor/kit/name-order';
+import { compareCodePoints, compareOrderedNames, parseOrderedName } from '../vendor/kit/name-order';
 import { normalizeRelPath } from '../vendor/kit/rel-path';
 import { CODES } from './finding-codes';
 import type { Finding, NoteInput, Recipe } from './types';
@@ -42,7 +42,7 @@ export function notYetFindings(recipe: Recipe): Finding[] {
 function compareFolderNames(a: string, b: string): number {
   const byRule = compareOrderedNames(parseOrderedName(a), parseOrderedName(b));
   if (byRule !== 0) return byRule;
-  return a < b ? -1 : a > b ? 1 : 0;
+  return compareCodePoints(a, b);
 }
 
 /**

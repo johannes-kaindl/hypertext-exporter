@@ -55,6 +55,15 @@ describe('sortFindings', () => {
     expect(compareFindings(f('warning', 'x', 'Z.md'), f('warning', 'x', 'a.md'))).toBeLessThan(0);
   });
 
+  it('vergleicht nach Codepunkt und nicht nach UTF-16-Einheit: U+FF5E vor U+1F600', () => {
+    // nach UTF-16-Einheit steht das Ersatzpaar des Emoji (D83D) vor U+FF5E; nach Codepunkt U+FF5E vor U+1F600
+    const emoji = f('warning', 'x', '\u{1F600}.md');
+    const tilde = f('warning', 'x', '\uFF5E.md');
+    expect(compareFindings(tilde, emoji)).toBeLessThan(0);
+    expect(compareFindings(emoji, tilde)).toBeGreaterThan(0);
+    expect(sortFindings([emoji, tilde]).map((x) => x.notePath)).toEqual(['\uFF5E.md', '\u{1F600}.md']);
+  });
+
   it('gibt dasselbe Ergebnis für jede Eingabereihenfolge (alle Umordnungen von sechs Befunden)', () => {
     const six = [SAMPLE[0], SAMPLE[1], SAMPLE[2], SAMPLE[3], SAMPLE[4], SAMPLE[6]] as Finding[];
     const expected = JSON.stringify(sortFindings(six));

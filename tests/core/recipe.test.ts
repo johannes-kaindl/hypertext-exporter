@@ -84,6 +84,15 @@ describe('recipeYaml', () => {
     expect(lines).toContain('    - folder: "x #y"');
   });
 
+  it('bei gleichem Ordnungsschlüssel entscheidet der volle Name nach Codepunkt (U+FF5E vor U+1F600)', () => {
+    // beide Namen lesen sich als Schlüssel 1, Titel "A"; nur das Zeichen im Präfix unterscheidet sie
+    const n = ['O/01 \u{1F600} A/x.md', 'O/01 \uFF5E A/x.md'].map(noteAt);
+    const lines = (list: NoteInput[]): string[] => recipeYaml('O', list, 'en').split('\n').filter((l) => l.includes('folder'));
+    const expected = ['    - folder: 01 \uFF5E A', '    - folder: 01 \u{1F600} A'];
+    expect(lines(n)).toEqual(expected);
+    expect(lines([...n].reverse())).toEqual(lines(n));
+  });
+
   it('ein Ordner ohne Unterordner schreibt kein sections', () => {
     expect(recipeYaml('Projekt', [noteAt('Projekt/lose.md')], 'en')).toBe('  version: 1\n  lang: en');
   });

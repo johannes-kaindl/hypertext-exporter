@@ -1,6 +1,7 @@
 // Stempel (Bauplan Task 10, Spec 10.8): die Umgebung, in der die Seite entstand, als `<meta>`-Zeilen im Kopf.
 // Kein Datum, keine Uhrzeit, kein Pfad: Der Stempel gehört zur Datei und damit zur Byte-Gleichheit. Ändert sich die Umgebung, ändert sich die Datei sichtbar an dieser Stelle.
 import { escapeHtmlAttr } from '../vendor/kit/html-escape';
+import { compareCodePoints } from '../vendor/kit/name-order';
 import type { BlocksMode } from './types';
 
 export interface StampInput {
@@ -19,7 +20,7 @@ export interface StampInput {
 /**
  * `<meta name="ht-…" content="…">`, eine Zeile je Eintrag, getrennt durch `\n`, ohne Zeilenende am Schluss. Feste Reihenfolge:
  * Plugin-Version, Obsidian-Version und -Sprache, Thema und seine Prüfsumme, Schalter, dann (nur mit `plugins`) je ein `ht-plugin` nach `id`.
- * Werte laufen durch `escapeHtmlAttr`. Die Plugins sortiert der Stempel nach `id` (UTF-16-Codeeinheiten, siehe `compareFindings`), bei gleicher `id` nach Version.
+ * Werte laufen durch `escapeHtmlAttr`. Die Plugins sortiert der Stempel nach `id` (Codepunkt, `compareCodePoints` des Kits), bei gleicher `id` nach Version.
  */
 export function stampMeta(input: StampInput): string {
   const rows: Array<[string, string]> = [
@@ -32,11 +33,7 @@ export function stampMeta(input: StampInput): string {
     ['ht-embeds', input.embeds],
     ['ht-remote-images', input.remoteImages],
   ];
-  const plugins = [...(input.plugins ?? [])].sort((a, b) => {
-    if (a.id !== b.id) return a.id < b.id ? -1 : 1;
-    if (a.version !== b.version) return a.version < b.version ? -1 : 1;
-    return 0;
-  });
+  const plugins = [...(input.plugins ?? [])].sort((a, b) => compareCodePoints(a.id, b.id) || compareCodePoints(a.version, b.version));
   for (const p of plugins) rows.push(['ht-plugin', `${p.id}@${p.version}`]);
   return rows.map(([name, value]) => `<meta name="${name}" content="${escapeHtmlAttr(value)}">`).join('\n');
 }

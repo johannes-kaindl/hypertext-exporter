@@ -1,6 +1,7 @@
 // Befundliste (Bauplan Task 12, Spec 10.9): sammeln, zählen, in fester Reihenfolge ordnen.
 // Die Reihenfolge hängt nur vom Inhalt der Befunde ab (Schwere, Notizpfad, Code), nie von der Reihenfolge, in der sie anfielen: Die Ergebnisdatei
-// gehört zur Byte-Gleichheit (Spec 10.8). Verglichen wird mit `<` auf der Zeichenfolge, nie mit `localeCompare` (das hängt an Sprache und ICU des Rechners).
+// gehört zur Byte-Gleichheit (Spec 10.8). Verglichen wird nach Codepunkt, nie mit `localeCompare` (das hängt an Sprache und ICU des Rechners).
+import { compareCodePoints } from '../vendor/kit/name-order';
 import type { Finding, Severity } from './types';
 
 const RANK: Record<Severity, number> = { error: 0, warning: 1, info: 2 };
@@ -9,16 +10,11 @@ export interface FindingCounts { errors: number; warnings: number; infos: number
 
 /**
  * Ordnung: Schwere (Fehler vor Warnung vor Hinweis), dann `notePath` (Befunde ohne Notiz zuerst), dann `code`.
- * `<` vergleicht UTF-16-Codeeinheiten; das ist die Codepunkt-Ordnung bis auf Zeichen oberhalb von U+FFFF (dort steht ein Ersatzpaar vor U+E000 bis U+FFFF).
- * Fest und rechnerunabhängig ist beides; die Codepunkt-Fassung wartet auf die Kit-Funktion `compareCodePoints` (Bestellung im Bericht des Baus).
+ * Der Textvergleich ist `compareCodePoints` des Kits (Codepunkt, nie Sprache, nie UTF-16-Einheit): fest und rechnerunabhängig.
  */
 export function compareFindings(a: Finding, b: Finding): number {
   if (a.severity !== b.severity) return RANK[a.severity] - RANK[b.severity];
-  const pairs: Array<[string, string]> = [[a.notePath ?? '', b.notePath ?? ''], [a.code, b.code]];
-  for (const [x, y] of pairs) {
-    if (x !== y) return x < y ? -1 : 1;
-  }
-  return 0;
+  return compareCodePoints(a.notePath ?? '', b.notePath ?? '') || compareCodePoints(a.code, b.code);
 }
 
 /** Eine geordnete Kopie; gleiche Befunde behalten ihre Eingabereihenfolge (stabil, ohne sich auf die Sortierung der Laufzeit zu verlassen). */
