@@ -1,4 +1,4 @@
-// vendored from code-kit@0.84.0, src/ts/pure/screen-document.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
+// vendored from code-kit@0.85.0, src/ts/pure/screen-document.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
 // Origin: new in code-kit (Welle 36, h1c, order 9 of the hypertext-exporter plan, spec 10.8 and 12 layer 3). Measured 2026-11-19 before building:
 //   * `print-document` (`buildPrintDocument`) is a PRINT document: no viewport, no `<title>`, no script, and its CSP is the caller's string. A screen page needs the
 //     opposite on all three, and its CSP is derived from the page, so it is a second builder and not an option of the first (they share `html-escape`, nothing else).

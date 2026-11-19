@@ -1,4 +1,4 @@
-// vendored from code-kit@0.84.0, src/ts/pure/field-template.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
+// vendored from code-kit@0.85.0, src/ts/pure/field-template.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
 // Origin: new in code-kit (Welle 36, h1 and h1c, order 22 of the hypertext-exporter plan, task 10, spec 10.6). Measured 2026-11-19 before building:
 //   * `filename-template` (`buildFilename`) reads `{\w+}` against a map of STRINGS, sanitises the result as a file name and keeps an unknown name literal;
 //     it has no dot path, no list or number, no missing-field list and no `{{`. A different job (a file name), not a base for this one.

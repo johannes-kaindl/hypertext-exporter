@@ -4,7 +4,7 @@
       "ref": "0.104.0"
     },
     "code-kit": {
-      "ref": "0.84.0"
+      "ref": "0.85.0"
     }
   },
   "targets": [
@@ -41,7 +41,8 @@
         "folder-tree",
         "csp",
         "field-template",
-        "screen-document"
+        "screen-document",
+        "anchor-marks"
       ]
     },
     {
@@ -122,7 +123,8 @@
       "from": "src/ts/web",
       "modules": [
         "svg-guard",
-        "macrotask-pause"
+        "macrotask-pause",
+        "anchor-check"
       ],
       "rewrite": [
         [
