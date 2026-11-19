@@ -4,6 +4,7 @@
 import { parseLinktext, stripHeading, type App, type TFile } from 'obsidian';
 import { CODES } from '../core/finding-codes';
 import type { Finding, Recipe, RunControl, SetNote } from '../core/types';
+import { prepareExportMarkdown } from '../vendor/kit/export-prepare';
 import { freezeRenderedDom, type ExportFreezeFinding, type ExportFreezePorts } from '../vendor/kit/export-freeze';
 import { RENDER_NOTE_CSS, withRenderedNote, type RenderNoteFinding, type RenderNotePorts } from '../vendor/kit-obsidian/render-note';
 
@@ -85,14 +86,46 @@ function protectTree(root: HTMLElement, note: SetNote): Finding[] {
   return [];
 }
 
+/** Alle Textknoten unter `node` in Dokumentreihenfolge (ohne `document`, damit der Baum auch losgelöst durchsucht wird). */
+function textNodes(node: Node, out: Text[] = []): Text[] {
+  for (const child of Array.from(node.childNodes)) {
+    if (child.nodeType === 3) out.push(child as Text);
+    else textNodes(child, out);
+  }
+  return out;
+}
+
 /**
- * Die Naht für Kit-Bestellung 21 (Vorbehandlung, Spec 10.2 Schritt 2b): rohe Rahmen zu Platzhaltern, Codeblöcke und Inline-Abfragen je nach `recipe.blocks` herausnehmen.
- * Bis das Kit sie liefert, gibt sie den Text unverändert zurück und `restore` tut nichts. Hier, und nur hier, wird 21 eingesetzt: `markdown` ist der vorbehandelte Text,
- * `restore` setzt die herausgenommenen Blöcke nach dem Zeichnen als `<pre><code class="language-x">` in den gezeichneten Baum zurück.
+ * Vorbehandlung (Kit-Bestellung 21, Spec 10.2 Schritt 2b): rohe Rahmen werden zu Platzhaltern, Codeblöcke und Inline-Abfragen je nach `recipe.blocks` herausgenommen
+ * (`none`/`core`/`all` entsprechen den Stellungen des Kits). `markdown` ist der vorbehandelte Text; `restore` setzt die herausgenommenen Blöcke nach dem Zeichnen als
+ * `<pre><code class="language-x">` in den gezeichneten Baum zurück (Text über `textContent`, vom DOM maskiert) und meldet einen Platzhalter, den es im Baum nicht findet.
  */
-function prepareMarkdown(note: SetNote, recipe: Recipe): { markdown: string; restore: (root: HTMLElement) => void } {
-  void recipe;
-  return { markdown: note.body, restore: () => {} };
+function prepareMarkdown(note: SetNote, recipe: Recipe): { markdown: string; restore: (root: HTMLElement) => Finding[] } {
+  const prepared = prepareExportMarkdown(note.body, { codeBlocks: recipe.blocks });
+  const restore = (root: HTMLElement): Finding[] => {
+    const findings: Finding[] = [];
+    const nodes = textNodes(root);
+    for (const code of prepared.codes) {
+      const hit = nodes.find((n) => n.parentNode !== null && n.data.trim() === code.placeholder);
+      if (hit === undefined) {
+        findings.push({
+          severity: 'warning',
+          code: CODES.renderPlaceholderLost,
+          message: `Ein Codeblock${code.lang === '' ? '' : ` (${code.lang})`} ging beim Zeichnen verloren und fehlt in der Seite`,
+          notePath: note.path,
+        });
+        continue;
+      }
+      const pre = createEl('pre');
+      pre.createEl('code', { text: code.text, ...(code.lang === '' ? {} : { cls: `language-${code.lang}` }) });
+      const parent = hit.parentNode as Node;
+      // Ein Absatz, der nur den Platzhalter trägt, wird ersetzt; in einer engen Liste steht der Platzhalter ohne Absatz und wird selbst ersetzt.
+      const alone = parent.nodeName === 'P' && parent.childNodes.length === 1;
+      (alone ? parent : hit).parentNode?.replaceChild(pre, alone ? parent : hit);
+    }
+    return findings;
+  };
+  return { markdown: prepared.markdown, restore };
 }
 
 /** Name des Abschnitts oder Blocks, wie Obsidian ihn vergleicht: ohne Sonderzeichen, ohne Groß/Klein. */
@@ -169,7 +202,7 @@ export async function renderNote(app: App, note: SetNote, recipe: Recipe, run: R
       const root = createDiv();
       if (rendered.findings.some((f) => f.kind === 'window-hidden')) return { root, findings };
       findings.push(...checkEmbeds(app, rendered.root, note, deps.inSet));
-      prepared.restore(rendered.root);
+      findings.push(...prepared.restore(rendered.root));
       // Einfrieren am angehängten Baum (der Canvas braucht seinen Inhalt), erst danach löst sich der Inhalt vom Host.
       const frozen = freezeRenderedDom(rendered.root, deps.freezePorts ?? { createEl: (tag) => createEl(tag) });
       // Eine Einbettung ohne Ziel (`mod-empty`) hat der Zeichner schon als `embed.missing` gemeldet; nicht noch einmal als leerer Block.

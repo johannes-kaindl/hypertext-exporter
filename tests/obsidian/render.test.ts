@@ -184,6 +184,105 @@ describe('renderNote: Einbettungen', () => {
   });
 });
 
+/** Zeichner-Ersatz, der den vorbehandelten Text liest wie Obsidian: jede Zeile wird ein Absatz (Platzhalter stehen allein in einer Zeile). */
+function drawFromMarkdown(drop: (placeholder: string) => boolean = () => false): { deps: RenderDeps; seen: string[] } {
+  const seen: string[] = [];
+  const draw = async <T>(opts: RenderNoteOptions, use: (n: RenderedNote) => T | Promise<T>): Promise<T> => {
+    seen.push(opts.markdown);
+    const host = document.createElement('div');
+    for (const line of opts.markdown.split('\n')) {
+      if (line.trim() === '' || drop(line.trim())) continue;
+      host.appendChild(document.createElement('p')).textContent = line;
+    }
+    document.body.appendChild(host);
+    try { return await use({ root: host, findings: [] }); } finally { host.remove(); }
+  };
+  return { deps: { draw: draw as RenderDeps['draw'] }, seen };
+}
+
+const withBody = (body: string): typeof note => ({ ...note, body });
+const recipeWith = (blocks: 'none' | 'core' | 'all'): typeof DEFAULT_RECIPE => ({ ...DEFAULT_RECIPE, blocks });
+
+describe('renderNote: Vorbehandlung über das Kit', () => {
+  const dv = '```dataview\nTABLE x FROM "<b>y</b>"\n```';
+
+  it('Stellung core: ein dataview-Block erreicht den Zeichner nicht und kommt als pre/code mit maskiertem Text zurück', async () => {
+    const d = drawFromMarkdown();
+    const out = await renderNote(fakeApp({}), withBody(`Vorher\n\n${dv}\n\nNachher`), recipeWith('core'), run(), d.deps);
+    expect(d.seen[0]).not.toContain('dataview');
+    expect(d.seen[0]).not.toContain('TABLE');
+    expect(out.findings).toEqual([]);
+    const code = out.root.querySelector('pre > code.language-dataview');
+    expect(code?.textContent).toBe('TABLE x FROM "<b>y</b>"');
+    expect(out.root.querySelector('code b')).toBeNull();
+    expect(out.root.innerHTML).toContain('&lt;b&gt;y&lt;/b&gt;');
+    expect(out.root.querySelectorAll('p')).toHaveLength(2);
+  });
+
+  it('Stellung core: mermaid erreicht den Zeichner', async () => {
+    const d = drawFromMarkdown();
+    const out = await renderNote(fakeApp({}), withBody('```mermaid\ngraph TD\n```'), recipeWith('core'), run(), d.deps);
+    expect(d.seen[0]).toContain('```mermaid');
+    expect(out.root.querySelector('pre')).toBeNull();
+  });
+
+  it('Stellung none: auch mermaid wird herausgenommen', async () => {
+    const d = drawFromMarkdown();
+    const out = await renderNote(fakeApp({}), withBody('```mermaid\ngraph TD\n```'), recipeWith('none'), run(), d.deps);
+    expect(d.seen[0]).not.toContain('mermaid');
+    expect(out.root.querySelector('pre > code.language-mermaid')?.textContent).toBe('graph TD');
+  });
+
+  it('Stellung all: alles geht an den Zeichner, nichts wird zurückgesetzt', async () => {
+    const d = drawFromMarkdown();
+    const out = await renderNote(fakeApp({}), withBody(dv), recipeWith('all'), run(), d.deps);
+    expect(d.seen[0]).toContain('```dataview');
+    expect(out.root.querySelector('pre')).toBeNull();
+    expect(out.findings).toEqual([]);
+  });
+
+  it('ein Block ohne Sprache bekommt keine language-Klasse', async () => {
+    const d = drawFromMarkdown();
+    const out = await renderNote(fakeApp({}), withBody('```\nroh\n```'), recipeWith('core'), run(), d.deps);
+    const code = out.root.querySelector('pre > code');
+    expect(code?.textContent).toBe('roh');
+    expect(code?.className).toBe('');
+  });
+
+  it('der Platzhalter 1 trifft nicht den Platzhalter 10', async () => {
+    const blocks = Array.from({ length: 11 }, (_, i) => `\`\`\`js\nblock${i}\n\`\`\``).join('\n\n');
+    const out = await renderNote(fakeApp({}), withBody(blocks), recipeWith('core'), run(), drawFromMarkdown().deps);
+    expect(Array.from(out.root.querySelectorAll('code')).map((c) => c.textContent)).toEqual(Array.from({ length: 11 }, (_, i) => `block${i}`));
+  });
+
+  it('ein verlorener Platzhalter 1 nimmt nicht den Block 10 mit', async () => {
+    const blocks = Array.from({ length: 11 }, (_, i) => `\`\`\`js\nblock${i}\n\`\`\``).join('\n\n');
+    const out = await renderNote(fakeApp({}), withBody(blocks), recipeWith('core'), run(), drawFromMarkdown((p) => p === 'OKITEXPORTCODE1').deps);
+    expect(out.findings.map((f) => f.code)).toEqual([CODES.renderPlaceholderLost]);
+    const texts = Array.from(out.root.querySelectorAll('code')).map((c) => c.textContent);
+    expect(texts).toHaveLength(10);
+    expect(texts).toContain('block10');
+    expect(texts).not.toContain('block1');
+  });
+
+  it('ein Rahmen erreicht den Zeichner in keiner Stellung', async () => {
+    for (const blocks of ['none', 'core', 'all'] as const) {
+      const d = drawFromMarkdown();
+      await renderNote(fakeApp({}), withBody('Text <iframe src="app://x"></iframe> Ende'), recipeWith(blocks), run(), d.deps);
+      expect(d.seen[0]).not.toMatch(/<iframe/i);
+      expect(d.seen[0]).toContain('\\[iframe\\]');
+    }
+  });
+
+  it('ein verlorener Platzhalter ergibt render.placeholder-lost mit notePath; die übrigen Blöcke kommen zurück', async () => {
+    const d = drawFromMarkdown((p) => p === 'OKITEXPORTCODE0');
+    const out = await renderNote(fakeApp({}), withBody('```js\neins\n```\n\n```py\nzwei\n```'), recipeWith('core'), run(), d.deps);
+    expect(out.findings).toHaveLength(1);
+    expect(out.findings[0]).toMatchObject({ severity: 'warning', code: CODES.renderPlaceholderLost, notePath: note.path });
+    expect(Array.from(out.root.querySelectorAll('pre > code')).map((c) => c.textContent)).toEqual(['zwei']);
+  });
+});
+
 describe('renderNote: mit dem echten Zeichner des Kits', () => {
   it('erkennt mod-empty selbst, räumt den Host ab und liefert den Baum losgelöst', async () => {
     (Element.prototype as unknown as Record<string, unknown>).setCssProps = function (this: HTMLElement, props: Record<string, string>) {

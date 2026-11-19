@@ -11,6 +11,7 @@ export const CODES = {
   renderTimeout: 'render.timeout',
   renderHiddenWindow: 'render.hidden-window',
   renderPlaceholder: 'render.placeholder',
+  renderPlaceholderLost: 'render.placeholder-lost',
   renderFailed: 'render.failed',
   renderMermaidMissing: 'render.mermaid-missing',
   freezeEmptyBlock: 'freeze.empty-block',
