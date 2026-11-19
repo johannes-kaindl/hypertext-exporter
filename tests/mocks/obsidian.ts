@@ -12,3 +12,6 @@ export class Plugin {
 }
 
 export function getLanguage(): string { return "en"; }
+
+// Nur damit `import { requestUrl } from "obsidian"` im vendorten inline-images auflöst; Tests reichen eigene `ports` durch.
+export function requestUrl(): Promise<never> { return Promise.reject(new Error("requestUrl: im Test nicht verfügbar")); }
