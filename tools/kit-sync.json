@@ -1,0 +1,106 @@
+{
+  "sources": {
+    "obsidian-kit": {
+      "ref": "0.99.1"
+    },
+    "code-kit": {
+      "ref": "0.78.0"
+    }
+  },
+  "targets": [
+    {
+      "dir": "src/vendor/kit",
+      "source": "code-kit",
+      "from": "src/ts/pure",
+      "modules": [
+        "folder-scope",
+        "rel-path",
+        "name-order",
+        "heading-title",
+        "slug",
+        "sha256",
+        "data-url",
+        "validate-input",
+        "run-state",
+        "cooperative-yield",
+        "timeout",
+        "i18n",
+        "format-bytes",
+        "fold-case",
+        "run-exclusive",
+        "filename-policy",
+        "safe-markdown",
+        "error-message"
+      ]
+    },
+    {
+      "dir": "src/vendor/kit",
+      "source": "obsidian-kit",
+      "from": "src/pure",
+      "modules": [
+        "frontmatter",
+        "mermaid-wait",
+        "image-source",
+        "filename-sanitizer-source"
+      ],
+      "rewrite": [
+        [
+          "../vendor/code-kit/pure/",
+          "./"
+        ]
+      ]
+    },
+    {
+      "dir": "src/vendor/kit/pdf",
+      "source": "obsidian-kit",
+      "from": "src/pure/pdf",
+      "modules": [
+        "code-blocks"
+      ],
+      "vendorJson": "src/vendor/kit"
+    },
+    {
+      "dir": "src/vendor/kit-obsidian",
+      "source": "obsidian-kit",
+      "from": "src/obsidian",
+      "modules": [
+        "hub",
+        "confirm",
+        "folder-suggest",
+        "settings_walker",
+        "help-setting",
+        "share-export",
+        "safe-file-name",
+        "inline-images",
+        "status-indicator",
+        "clock",
+        "plugin-api",
+        "setting-body-host"
+      ],
+      "rewrite": [
+        [
+          "../vendor/code-kit/pure/",
+          "../kit/"
+        ],
+        [
+          "../pure/",
+          "../kit/"
+        ]
+      ]
+    },
+    {
+      "dir": "src/vendor/kit",
+      "source": "code-kit",
+      "from": "src/ts/web",
+      "modules": [
+        "svg-guard"
+      ],
+      "rewrite": [
+        [
+          "../pure/",
+          "./"
+        ]
+      ]
+    }
+  ]
+}
