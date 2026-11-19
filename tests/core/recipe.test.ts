@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { CODES } from '../../src/core/finding-codes';
-import { DEFAULT_RECIPE, notYetFindings, recipeYaml } from '../../src/core/recipe';
+import { DEFAULT_RECIPE, notYetFindings, parseRecipe, recipeYaml } from '../../src/core/recipe';
 import type { NoteInput, Recipe } from '../../src/core/types';
 
 describe('DEFAULT_RECIPE', () => {
@@ -99,5 +99,186 @@ describe('recipeYaml', () => {
 
   it('der Wurzelordner nimmt die Ordner oberster Ebene', () => {
     expect(recipeYaml('', [noteAt('b/x.md'), noteAt('a/x.md'), noteAt('lose.md')], 'en')).toBe('  version: 1\n  lang: en\n  sections:\n    - folder: a\n    - folder: b');
+  });
+});
+
+describe('parseRecipe', () => {
+  const only = (raw: unknown) => parseRecipe(raw).findings;
+
+  it('undefined (kein Block) ergibt DEFAULT_RECIPE und keine Befunde', () => {
+    expect(parseRecipe(undefined)).toEqual({ recipe: DEFAULT_RECIPE, findings: [] });
+    expect(parseRecipe(null)).toEqual({ recipe: DEFAULT_RECIPE, findings: [] });
+  });
+
+  it('der deutsche Block ergibt dieselbe Recipe wie der englische', () => {
+    const en = {
+      version: 1,
+      title: 'Bericht',
+      lang: 'de',
+      sources: ['../../runs/a', { path: '../../runs/b', key: 'lauf-b', title: 'Lauf B' }],
+      sections: [
+        { folder: 'themen', title: 'Themen', order: 'mention', group_by: ['lauf', 'folder'], overview: ['frage', { header: 'Pro', template: '{a} von {b}' }], summary_line: ['frage'], open: true },
+        { note: 'schluss.md' },
+      ],
+      fields: { title: 'name', order: 'rang', exclude: 'weg' },
+      fold: { headings_from: 3, linked_summary: true },
+      theme: 'default',
+      output: 'file',
+      output_limit_mb: 5,
+      embeds: 'static',
+      blocks: 'all',
+      remote_images: 'skip',
+      stamp: 'full',
+    };
+    const de = {
+      version: 1,
+      titel: 'Bericht',
+      sprache: 'de',
+      quellen: ['../../runs/a', { pfad: '../../runs/b', key: 'lauf-b', titel: 'Lauf B' }],
+      bereiche: [
+        { ordner: 'themen', titel: 'Themen', reihenfolge: 'mention', gruppen: ['lauf', 'folder'], uebersicht: ['frage', { ueberschrift: 'Pro', vorlage: '{a} von {b}' }], zusatzzeile: ['frage'], offen: true },
+        { datei: 'schluss.md' },
+      ],
+      felder: { titel: 'name', reihenfolge: 'rang', ausschliessen: 'weg' },
+      aufklappen: { ueberschrift_ab: 3, zusatzzeile_aus_link: true },
+      thema: 'default',
+      ausgabe: 'file',
+      output_limit_mb: 5,
+      einbettungen: 'static',
+      bloecke: 'all',
+      fernbilder: 'skip',
+      stempel: 'full',
+    };
+    const a = parseRecipe(en);
+    const b = parseRecipe(de);
+    expect(a.findings).toEqual([]);
+    expect(b.findings).toEqual([]);
+    expect(b.recipe).toEqual(a.recipe);
+    expect(a.recipe.title).toBe('Bericht');
+    expect(a.recipe.sections[0]).toEqual({
+      kind: 'folder',
+      path: 'themen',
+      title: 'Themen',
+      order: { kind: 'mention' },
+      groupBy: ['lauf', 'folder'],
+      overview: [{ header: 'frage', field: 'frage' }, { header: 'Pro', template: '{a} von {b}' }],
+      summaryLine: [{ header: 'frage', field: 'frage' }],
+      open: true,
+    });
+    expect(a.recipe.sections[1]).toEqual({ kind: 'note', path: 'schluss.md', order: { kind: 'name' }, groupBy: [], overview: [], summaryLine: [], open: false });
+    expect(a.recipe.fold).toEqual({ headingsFrom: 3, linkedSummary: true });
+    expect(a.recipe.fields).toEqual({ title: 'name', order: 'rang', exclude: 'weg' });
+    expect(a.recipe.outputLimitMb).toBe(5);
+  });
+
+  it('tolerant gegen Groß-/Kleinschreibung, _ und - im Schlüssel', () => {
+    expect(parseRecipe({ 'Output-Limit_MB': 7, REMOTE_images: 'embed' }).recipe).toMatchObject({ outputLimitMb: 7, remoteImages: 'embed' });
+  });
+
+  it('eine Quelle ohne key bekommt den Slug des letzten Pfadteils', () => {
+    const { recipe, findings } = parseRecipe({ sources: ['../../runs/Lauf Zwei/', { path: 'x/Größe' }] });
+    expect(findings).toEqual([]);
+    expect(recipe.sources).toEqual([
+      { path: '../../runs/Lauf Zwei/', key: 'lauf-zwei' },
+      { path: 'x/Größe', key: 'groesse' },
+    ]);
+  });
+
+  it('embeds: live ist ein Fehler recipe.value-later und der Text nennt embeds', () => {
+    const f = only({ embeds: 'live' });
+    expect(f).toHaveLength(1);
+    expect(f[0]?.severity).toBe('error');
+    expect(f[0]?.code).toBe(CODES.recipeValueLater);
+    expect(f[0]?.message).toContain('embeds');
+    expect(f[0]?.message).toContain('späteren Fassung');
+    expect(f[0]?.recipePath).toBe('embeds');
+    // der Alias meldet unter dem festen Namen
+    expect(only({ einbettungen: 'live' })[0]?.recipePath).toBe('embeds');
+  });
+
+  it('ein Tippfehler-Schlüssel ist eine Warnung recipe.unknown-key mit recipePath', () => {
+    const { recipe, findings } = parseRecipe({ sectons: [{ folder: 'a' }], title: 'T' });
+    expect(findings).toEqual([expect.objectContaining({ severity: 'warning', code: CODES.recipeUnknownKey, recipePath: 'sectons' })]);
+    expect(recipe.title).toBe('T');
+    expect(recipe.sections).toEqual([]);
+  });
+
+  it('ein unbekannter Schlüssel in einem Bereich nennt den Ort', () => {
+    const f = only({ sections: [{ folder: 'a' }, { folder: 'b', oepn: true }] });
+    expect(f).toEqual([expect.objectContaining({ severity: 'warning', code: CODES.recipeUnknownKey, recipePath: 'sections[1].oepn' })]);
+  });
+
+  it('Spalte mit Vorlage und Spalte als Text', () => {
+    const { recipe, findings } = parseRecipe({ sections: [{ folder: 'a', overview: [{ header: 'Pro', template: '{a} von {b}' }, 'frage', { header: 'F', field: 'frage.x' }, { field: 'nur' }] }] });
+    expect(findings).toEqual([]);
+    expect(recipe.sections[0]?.overview).toEqual([
+      { header: 'Pro', template: '{a} von {b}' },
+      { header: 'frage', field: 'frage' },
+      { header: 'F', field: 'frage.x' },
+      { header: 'nur', field: 'nur' },
+    ]);
+  });
+
+  it('eine Spalte mit field und template oder mit keinem von beiden ist ein Fehler recipe.invalid', () => {
+    const both = only({ sections: [{ folder: 'a', overview: [{ header: 'H', field: 'x', template: '{x}' }] }] });
+    expect(both).toEqual([expect.objectContaining({ severity: 'error', code: CODES.recipeInvalid, recipePath: 'sections[0].overview[0]' })]);
+    const none = only({ sections: [{ folder: 'a', overview: [{ header: 'H' }] }] });
+    expect(none[0]).toMatchObject({ severity: 'error', code: CODES.recipeInvalid });
+    const noHeader = only({ sections: [{ folder: 'a', summary_line: [{ template: '{x}' }] }] });
+    expect(noHeader[0]).toMatchObject({ severity: 'error', code: CODES.recipeInvalid, recipePath: 'sections[0].summary_line[0]' });
+  });
+
+  it('ein Bereich braucht genau eines von folder, note, source', () => {
+    expect(only({ sections: [{ title: 'x' }] })[0]).toMatchObject({ severity: 'error', code: CODES.recipeInvalid, recipePath: 'sections[0]' });
+    expect(only({ sections: [{ folder: 'a', note: 'b.md' }] })[0]).toMatchObject({ severity: 'error', code: CODES.recipeInvalid, recipePath: 'sections[0]' });
+    expect(parseRecipe({ sections: [{ source: 'lauf-a' }] }).recipe.sections[0]).toMatchObject({ kind: 'source', path: 'lauf-a' });
+  });
+
+  it('version: 2 ist ein Fehler recipe.version', () => {
+    const f = only({ version: 2 });
+    expect(f).toEqual([expect.objectContaining({ severity: 'error', code: CODES.recipeVersion, recipePath: 'version' })]);
+    expect(only({ version: 1 })).toEqual([]);
+  });
+
+  it('output_limit_mb: 0 und negative Werte sind ein Fehler recipe.invalid', () => {
+    expect(only({ output_limit_mb: 0 })).toEqual([expect.objectContaining({ severity: 'error', code: CODES.recipeInvalid, recipePath: 'output_limit_mb' })]);
+    expect(only({ output_limit_mb: -3 })[0]?.code).toBe(CODES.recipeInvalid);
+    expect(only({ output_limit_mb: 'viel' })[0]?.code).toBe(CODES.recipeInvalid);
+    expect(parseRecipe({ output_limit_mb: 0.5 }).recipe.outputLimitMb).toBe(0.5);
+  });
+
+  it('falsche Typen und unzulässige Werte sind Fehler recipe.invalid mit Pfad, nie ein stiller Standardwert', () => {
+    expect(only({ blocks: 'viele' })[0]).toMatchObject({ severity: 'error', code: CODES.recipeInvalid, recipePath: 'blocks' });
+    expect(only({ lang: 'fr' })[0]).toMatchObject({ severity: 'error', code: CODES.recipeInvalid, recipePath: 'lang' });
+    expect(only({ sections: 'a' })[0]).toMatchObject({ severity: 'error', code: CODES.recipeInvalid, recipePath: 'sections' });
+    expect(only({ fold: { headings_from: 9 } })[0]).toMatchObject({ severity: 'error', code: CODES.recipeInvalid, recipePath: 'fold.headings_from' });
+    expect(only('hypertext')[0]).toMatchObject({ severity: 'error', code: CODES.recipeInvalid });
+    expect(parseRecipe({ blocks: 'viele' }).recipe.blocks).toBe('core');
+  });
+
+  it('order: mention und name sind Regeln, jeder andere Text ist ein Feldname, field:name das Feld name', () => {
+    const rule = (order: string) => parseRecipe({ sections: [{ folder: 'a', order }] }).recipe.sections[0]?.order;
+    expect(rule('mention')).toEqual({ kind: 'mention' });
+    expect(rule('name')).toEqual({ kind: 'name' });
+    expect(rule('rang')).toEqual({ kind: 'field', field: 'rang' });
+    expect(rule('field:name')).toEqual({ kind: 'field', field: 'name' });
+    expect(rule('field:mention')).toEqual({ kind: 'field', field: 'mention' });
+  });
+
+  it('das Raster wird gelesen und bleibt ein recipe.not-yet für notYetFindings', () => {
+    const { recipe, findings } = parseRecipe({ grids: { states: { ok: ['ja', 'ok'], no: ['nein'] }, group_columns: 'header-prefix', row_note: 'parentheses' } });
+    expect(findings).toEqual([]);
+    expect(recipe.grids).toEqual({ states: { ok: ['ja', 'ok'], no: ['nein'] }, groupColumns: 'header-prefix', rowNote: 'parentheses' });
+    expect(notYetFindings(recipe).map((x) => x.recipePath)).toEqual(['grids']);
+    expect(parseRecipe({ raster: { states: { ok: 'ja' } } }).recipe.grids).toEqual({ states: { ok: ['ja'] }, groupColumns: null, rowNote: null });
+    expect(only({ grids: { states: { ok: 5 } } })[0]).toMatchObject({ severity: 'error', code: CODES.recipeInvalid });
+    expect(only({ grids: { states: { ok: 'ja' }, stats: {} } })).toEqual([expect.objectContaining({ severity: 'warning', code: CODES.recipeUnknownKey, recipePath: 'grids.stats' })]);
+  });
+
+  it('Befunde (als Menge) und Ergebnis hängen nicht von der Reihenfolge der Schlüssel ab', () => {
+    const a = parseRecipe({ blocks: 'viele', embeds: 'live', sectons: 1, title: 'T' });
+    const b = parseRecipe({ title: 'T', sectons: 1, embeds: 'live', blocks: 'viele' });
+    expect(new Set(a.findings.map((x) => `${x.code}|${x.recipePath ?? ''}`))).toEqual(new Set(b.findings.map((x) => `${x.code}|${x.recipePath ?? ''}`)));
+    expect(a.recipe).toEqual(b.recipe);
   });
 });
