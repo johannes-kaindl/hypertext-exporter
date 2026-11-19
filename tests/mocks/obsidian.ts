@@ -32,6 +32,9 @@ export class TFile extends TAbstractFile { extension = "md"; }
 export class TFolder extends TAbstractFile {}
 
 export function getLanguage(): string { return "en"; }
+export const apiVersion = "1.15.1";
+/** Nur die Felder, die src/ liest. */
+export const Platform = { isMobile: false, isDesktopApp: true };
 
 // Nur damit `import { requestUrl } from "obsidian"` im vendorten inline-images auflöst; Tests reichen eigene `ports` durch.
 export function requestUrl(): Promise<never> { return Promise.reject(new Error("requestUrl: im Test nicht verfügbar")); }

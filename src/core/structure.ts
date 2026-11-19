@@ -23,8 +23,8 @@ import type { ExportSet, Finding, Recipe, SetGroup, SetNode, SetNote } from './t
 export interface StructureExtras {
   /** Die Zusatzzeile einer Notiz oder `null`. */
   summaryOf(note: SetNote): string | null;
-  /** Die Übersicht einer Gruppe (`div.ht-table`) oder `null`. */
-  overviewFor(group: SetGroup): HTMLElement | null;
+  /** Die Übersicht einer Gruppe (`div.ht-table`) oder `null`; `anchors` ist die Tabelle Pfad → Marke, die erst `structure` vergibt (die Übersicht braucht sie für die Sprünge). */
+  overviewFor(group: SetGroup, anchors: Map<string, string>): HTMLElement | null;
 }
 
 export interface StructureResult {
@@ -286,7 +286,7 @@ export function structure(
       const summary = doc.createElement('summary');
       summary.appendChild(heading(2 + level, node.title));
       details.appendChild(summary);
-      const overview = extras.overviewFor(node);
+      const overview = extras.overviewFor(node, anchors);
       if (overview !== null) details.appendChild(overview);
       place(node.children, details, level + 1);
       parent.appendChild(details);

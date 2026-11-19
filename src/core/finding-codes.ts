@@ -42,6 +42,7 @@ export const CODES = {
   outputOverLimit: 'output.over-limit',
   outputWriteFailed: 'output.write-failed',
   headingCapped: 'heading.capped',
+  exportFailed: 'export.failed',
 } as const;
 
 export type FindingCode = (typeof CODES)[keyof typeof CODES];

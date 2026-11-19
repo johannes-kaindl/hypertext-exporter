@@ -1,6 +1,6 @@
 // Schmale Schnittstelle zwischen Oberfläche (Ansicht, Befehle, Dateimenü) und Ablauf (UI-STANDARD §4: die Oberfläche kennt weder Plugin noch Ports).
-// Der Ablauf (Task 12: `runExport`, `writeExport`, `checkExport`) setzt `plugin.actions`; bis dahin ist es `null`, die Ansicht hält den Knopf aus
-// und die Befehle zeigen eine Notice „noch nicht verfügbar“ (`src/obsidian/commands.ts`).
+// Umgesetzt in `export-actions.ts` (`createExportActions`, über `runExport`, `writeExport`, `checkExport`); `main.ts` setzt `plugin.actions` beim Laden. Ist es `null`,
+// hält die Ansicht den Knopf aus und die Befehle zeigen eine Notice „noch nicht verfügbar“ (`src/obsidian/commands.ts`).
 //
 // Vertrag für den Ablauf (alle vier Methoden):
 // - **Wirft nie.** Jeder Ausgang, auch ein Fehler oder ein Abbruch, endet als aufgelöstes Promise; Fehler stehen als Befund (Fehlerstufe) im Ergebnis und in der Notice.

@@ -12,7 +12,7 @@ export interface GridRule { states: Record<string, string[]>; groupColumns: 'hea
 /** Pause über createCooperativeYield, Zustand über makeRunState (code-kit). */
 export interface RunControl { readonly aborted: boolean; pause(): Promise<void>; progress(done: number, total: number, label: string): void }
 /** Ergebnis eines Laufs (Bauplan Task 12). `html` fehlt bei `ok: false`; `bytes` ist die Größe der fertigen Seite in UTF-8-Bytes. */
-export interface ExportResult { ok: boolean; html?: string; fileName: string; findings: Finding[]; stats: { notes: number; bytes: number; mediaBytes: Record<string, number> } }
+export interface ExportResult { ok: boolean; html?: string; fileName: string; /** Vault-Pfad der Einstiegsnotiz, wie der Lauf ihn bestimmt hat (bei „automatisch“ erst im Lauf bekannt); fehlt, wenn es keine gibt. */ entryPath?: string; findings: Finding[]; stats: { notes: number; bytes: number; mediaBytes: Record<string, number> } }
 export interface Recipe { version: 1; title?: string; lang: 'en' | 'de'; sources: SourceSpec[]; sections: SectionSpec[]; fields: { title?: string; order?: string; exclude?: string }; fold: { headingsFrom: number | null; linkedSummary: boolean }; grids: GridRule | null; theme: string; output: OutputMode; outputLimitMb: number; embeds: 'static'; blocks: BlocksMode; remoteImages: 'skip' | 'embed'; stamp: 'minimal' | 'full' }
 
 // Aus Task 5 (Menge): nur die Typen, die Funktionen folgen mit Task 5.

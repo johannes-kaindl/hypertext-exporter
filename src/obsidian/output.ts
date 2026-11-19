@@ -9,7 +9,7 @@ import { exportOk, resultJson } from '../core/result-file';
 import type { ExportResult, Finding } from '../core/types';
 import { errorMessage } from '../vendor/kit/error-message';
 import { getLang } from '../vendor/kit/i18n';
-import { resolveOutputPath, type OutputDestination } from '../vendor/kit/output-target';
+import { outputFileName, resolveOutputPath, type OutputDestination } from '../vendor/kit/output-target';
 import { baseName, splitFileName } from '../vendor/kit/rel-path';
 import { joinVaultPath, vaultDirname } from '../vendor/kit/vault-path';
 import { writeExportOutput } from '../vendor/kit-obsidian/export-output';
@@ -61,19 +61,36 @@ export async function writeExport(plugin: OutputHost, result: ExportResult, entr
   }
 }
 
-async function write(plugin: OutputHost, result: ExportResult, entryPath: string): Promise<string> {
-  const adapter = plugin.app.vault.adapter;
-  const destination = KIT_DESTINATION[plugin.settings.destination];
-  const html = exportOk(result) ? result.html : undefined;
-  const base = splitFileName(baseName(entryPath)).stem;
-  const common = {
-    baseName: base,
+/** Die Angaben, die das Kit für Ziel und Dateinamen braucht; derselbe Satz für das Schreiben und für `outputPaths`, damit beide Namen nie auseinanderlaufen. */
+function pathInput(plugin: OutputHost, entryPath: string) {
+  return {
+    baseName: splitFileName(baseName(entryPath)).stem,
     extension: HTML_EXTENSION,
     noteDir: vaultDirname(entryPath),
     customFolder: plugin.settings.destinationFolder,
     attachmentPath: '',
     fallbackName: FALLBACK_NAME,
   };
+}
+
+/**
+ * Wo die Ausgabe zur Einstiegsnotiz liegt: `html` (die Seite) und `json` (die Ergebnisdatei, `null` beim Ziel „Teilen“, dort gibt es keine).
+ * Beim Ziel „Teilen“ ist `html` die Datei im versteckten Export-Ordner des Vaults (sie bleibt bis zum nächsten Export liegen). `null`, wenn sich kein Pfad ergibt.
+ */
+export function outputPaths(plugin: OutputHost, entryPath: string): { html: string; json: string | null } | null {
+  const common = pathInput(plugin, entryPath);
+  const destination = KIT_DESTINATION[plugin.settings.destination];
+  if (destination === 'share') return { html: `${SHARE_DIR}/${outputFileName(common.baseName, common.extension, common.fallbackName)}`, json: null };
+  const html = resolveOutputPath(destination, common);
+  if (html === null) return null;
+  return { html, json: joinVaultPath(vaultDirname(html), `${splitFileName(baseName(html)).stem}${RESULT_SUFFIX}`) };
+}
+
+async function write(plugin: OutputHost, result: ExportResult, entryPath: string): Promise<string> {
+  const adapter = plugin.app.vault.adapter;
+  const destination = KIT_DESTINATION[plugin.settings.destination];
+  const html = exportOk(result) ? result.html : undefined;
+  const common = pathInput(plugin, entryPath);
 
   if (destination === 'share') {
     if (html === undefined) return resultJson(failed(result), null);
@@ -83,10 +100,10 @@ async function write(plugin: OutputHost, result: ExportResult, entryPath: string
     return resultJson(result, null);
   }
 
-  // Ort der Ergebnisdatei: neben der Seite, mit demselben bereinigten Namen. Derselbe Aufruf wie im Kit, damit beide Namen nie auseinanderlaufen.
-  const htmlPath = resolveOutputPath(destination, common);
-  if (htmlPath === null) return resultJson(failed(result, writeFailure('Kein Ausgabepfad.')), null);
-  const jsonPath = joinVaultPath(vaultDirname(htmlPath), `${splitFileName(baseName(htmlPath)).stem}${RESULT_SUFFIX}`);
+  // Ort der Ergebnisdatei: neben der Seite, mit demselben bereinigten Namen.
+  const paths = outputPaths(plugin, entryPath);
+  const jsonPath = paths?.json ?? null;
+  if (jsonPath === null) return resultJson(failed(result, writeFailure('Kein Ausgabepfad.')), null);
 
   let final = result;
   let outPath: string | null = null;
