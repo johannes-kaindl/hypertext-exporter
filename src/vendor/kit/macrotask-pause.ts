@@ -1,4 +1,4 @@
-// vendored from code-kit@0.83.0, src/ts/web/macrotask-pause.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
+// vendored from code-kit@0.84.0, src/ts/web/macrotask-pause.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
 /** A pause that lets the event loop turn once, without a timer: `createMacrotaskPause()` → `{ pause(), close() }`.
  *
  *  ── What it is for ──────────────────────────────────────────────────────────────────────

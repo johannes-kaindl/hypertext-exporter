@@ -4,7 +4,7 @@
       "ref": "0.104.0"
     },
     "code-kit": {
-      "ref": "0.83.0"
+      "ref": "0.84.0"
     }
   },
   "targets": [
@@ -37,7 +37,11 @@
         "frontmatter-field",
         "fences",
         "filename-template",
-        "rotation"
+        "rotation",
+        "folder-tree",
+        "csp",
+        "field-template",
+        "screen-document"
       ]
     },
     {

@@ -1,4 +1,4 @@
-// vendored from code-kit@0.83.0, src/ts/pure/fences.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
+// vendored from code-kit@0.84.0, src/ts/pure/fences.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
 // Origin: obsidian-plugins `3d-codeblocks/src/core/shapes/fence.ts` (`fenceFor`), `src/core/shapes/references.ts` (`shapesBlock`,
 // here `wrapInFence` with the language as a parameter) and `src/obsidian/panel-accept.ts` (`closesOpenFence`, here on the opening
 // line instead of the notes text and a fence object). The scanner (`listFences`/`findFenceAt`) has the shape of obsidian-kit
@@ -39,7 +39,12 @@ export function fenceFor(body: string): string {
  *  (a BOM would sit in the first line of the body and break its parsing). Known, accepted normalisation: the way back (block → file)
  *  writes a file without BOM. The fence is measured on the normalised body. */
 export function wrapInFence(lang: string, body: string): string {
-  const clean = body.replace(/^\uFEFF/, "").replace(/\r\n/g, "\n").replace(/\n+$/, "");
+  const lf = body.replace(/^\uFEFF/, "").replace(/\r\n/g, "\n");
+  // the trailing breaks by a walk back from the end and one slice: `replace(/\n+$/, "")` tried the end check from every start of a long run of breaks in the MIDDLE of the text (quadratic:
+  // 98 ms at 10 000, 2.4 s at 50 000, measured by the breadth over 3d-codeblocks, 2026-11-19)
+  let end = lf.length;
+  while (end > 0 && lf.charCodeAt(end - 1) === 10) end--;
+  const clean = lf.slice(0, end);
   const fence = fenceFor(clean);
   return `${fence}${lang}\n${clean}\n${fence}`;
 }
