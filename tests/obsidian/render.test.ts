@@ -274,6 +274,19 @@ describe('renderNote: Vorbehandlung über das Kit', () => {
     }
   });
 
+  it('ersetzte Rahmen ergeben je Notiz einen Befund prepare.frame-replaced (info) mit der Zahl; ohne Rahmen keinen', async () => {
+    const d = drawFromMarkdown();
+    const two = await renderNote(fakeApp({}), withBody('A <iframe src="app://x"></iframe> B\n\n<iframe src="https://example.org/"></iframe>'), recipeWith('core'), run(), d.deps);
+    const hits = two.findings.filter((f) => f.code === CODES.prepareFrameReplaced);
+    expect(hits).toHaveLength(1);
+    expect(hits[0]).toMatchObject({ severity: 'info', notePath: note.path });
+    expect(hits[0]?.message).toContain('2 rohe Rahmen (iframe ×2)');
+    const one = await renderNote(fakeApp({}), withBody('A <iframe src="app://x"></iframe> B'), recipeWith('core'), run(), drawFromMarkdown().deps);
+    expect(one.findings.filter((f) => f.code === CODES.prepareFrameReplaced)[0]?.message).toContain('Ein roher Rahmen');
+    const none = await renderNote(fakeApp({}), withBody('Nur Text.'), recipeWith('core'), run(), drawFromMarkdown().deps);
+    expect(none.findings.filter((f) => f.code === CODES.prepareFrameReplaced)).toEqual([]);
+  });
+
   it('ein verlorener Platzhalter ergibt render.placeholder-lost mit notePath; die übrigen Blöcke kommen zurück', async () => {
     const d = drawFromMarkdown((p) => p === 'OKITEXPORTCODE0');
     const out = await renderNote(fakeApp({}), withBody('```js\neins\n```\n\n```py\nzwei\n```'), recipeWith('core'), run(), d.deps);

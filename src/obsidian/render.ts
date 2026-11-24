@@ -131,8 +131,16 @@ function textNodes(node: Node, out: Text[] = []): Text[] {
  * (`none`/`core`/`all` entsprechen den Stellungen des Kits). `markdown` ist der vorbehandelte Text; `restore` setzt die herausgenommenen Blöcke nach dem Zeichnen als
  * `<pre><code class="language-x">` in den gezeichneten Baum zurück (Text über `textContent`, vom DOM maskiert) und meldet einen Platzhalter, den es im Baum nicht findet.
  */
-function prepareMarkdown(note: SetNote, recipe: Recipe): { markdown: string; restore: (root: HTMLElement) => Finding[] } {
-  const prepared = prepareExportMarkdown(note.body, { codeBlocks: recipe.blocks });
+function prepareMarkdown(note: SetNote, recipe: Recipe): { markdown: string; frames: ReadonlyMap<string, number>; restore: (root: HTMLElement) => Finding[] } {
+  // `prepared.frames` zählt öffnende und schließende Marken zusammen (ein Rahmen ergäbe 2); gezählt wird deshalb, wie oft ein Rahmen ersetzt wird: der Ersatztext wird nur für öffnende Marken verlangt.
+  const frames = new Map<string, number>();
+  const prepared = prepareExportMarkdown(note.body, {
+    codeBlocks: recipe.blocks,
+    frameText: (tag) => {
+      frames.set(tag, (frames.get(tag) ?? 0) + 1);
+      return `\\[${tag}\\]`;
+    },
+  });
   const restore = (root: HTMLElement): Finding[] => {
     const findings: Finding[] = [];
     const nodes = textNodes(root);
@@ -156,7 +164,19 @@ function prepareMarkdown(note: SetNote, recipe: Recipe): { markdown: string; res
     }
     return findings;
   };
-  return { markdown: prepared.markdown, restore };
+  return { markdown: prepared.markdown, frames, restore };
+}
+
+/** Rohe Rahmen (`iframe`, `object`, …) ersetzt die Vorbehandlung vor dem Zeichnen durch einen Text wie `[iframe]`; der Leser der Ergebnisdatei soll den Verlust sehen (CORE-DATA-01). Je Notiz ein Befund mit der Zahl. */
+export function frameReplacedFinding(frames: ReadonlyMap<string, number>, notePath: string): Finding {
+  const total = Array.from(frames.values()).reduce((a, b) => a + b, 0);
+  const list = Array.from(frames, ([tag, n]) => (n > 1 ? `${tag} ×${n}` : tag)).sort().join(', ');
+  return {
+    severity: 'info',
+    code: CODES.prepareFrameReplaced,
+    message: total === 1 ? `Ein roher Rahmen (${list}) wurde durch einen Text ersetzt, er fehlt in der Seite` : `${total} rohe Rahmen (${list}) wurden durch Texte ersetzt, sie fehlen in der Seite`,
+    notePath,
+  };
 }
 
 /** Name des Abschnitts oder Blocks, wie Obsidian ihn vergleicht: ohne Sonderzeichen, ohne Groß/Klein. */
@@ -232,6 +252,7 @@ export async function renderNote(app: App, note: SetNote, recipe: Recipe, run: R
       const findings = rendered.findings.map((f) => translateRenderFinding(f, note.path));
       const root = createDiv();
       if (rendered.findings.some((f) => f.kind === 'window-hidden')) return { root, findings };
+      if (prepared.frames.size > 0) findings.push(frameReplacedFinding(prepared.frames, note.path));
       findings.push(...checkEmbeds(app, rendered.root, note, deps.inSet));
       findings.push(...prepared.restore(rendered.root));
       // Einfrieren am angehängten Baum (der Canvas braucht seinen Inhalt), erst danach löst sich der Inhalt vom Host.

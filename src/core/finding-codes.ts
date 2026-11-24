@@ -9,6 +9,7 @@ export const CODES = {
   setEmpty: 'set.empty',
   setExcluded: 'set.excluded',
   setNoGroupValue: 'set.no-group-value',
+  prepareFrameReplaced: 'prepare.frame-replaced',
   renderTimeout: 'render.timeout',
   renderHiddenWindow: 'render.hidden-window',
   renderPlaceholder: 'render.placeholder',

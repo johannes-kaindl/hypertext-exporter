@@ -116,7 +116,7 @@ function zeigeVertrag(): void {
   console.log("  P4   zweiter Lauf: Seite und Ergebnisdatei SHA-256-gleich zum ersten");
   console.log(`  P5   Abbruch bei Notiz >= 3 von ${ABBRUCH_NOTIZEN}: Knopf der Fortschrittsanzeige, danach keine neue HTML-Datei, vorhandene SHA-256-gleich, Ergebnisdatei ok:false`);
   console.log("  P6   Befehl check-export auf dem Beispiel meldet \"gleich\"");
-  console.log("  P7   Satz 18: Obsidians Lesefenster zeichnet das rohe iframe src=app://x (Kontrolle: Notizende gezeichnet); die exportierte Seite traegt kein iframe, der Befund-Weg wird benannt");
+  console.log("  P7   Satz 18: Obsidians Lesefenster zeichnet das rohe iframe src=app://x (Kontrolle: Notizende gezeichnet); die exportierte Seite traegt kein iframe, der Ersatz erscheint genau einmal als Befund prepare.frame-replaced (info) in der Ergebnisdatei");
   console.log("  P8   dritter Export nach dem Zeichnen einer fremden Mathe-Notiz (MathJax-Stile wachsen): Seite und Ergebnisdatei SHA-256-gleich zu den ersten beiden");
   console.log(`  P9   Formelstile vollstaendig: berechnete Stile der MathJax-Elemente in Obsidian gegen die Seite als file:// in headless Chrome (Port ${CHROME_PORT}), Gegenprobe mit eingeschleuster Regel`);
   console.log("  P10  Kaskade: dieselben Regeln aus dem Stylesheet von Obsidian, durch filterMathCss geordnet (ein Blatt, zwei Blaetter vertauscht), in die Seite gelegt: berechnete Stile gleich");
@@ -477,7 +477,7 @@ async function lauf(gegenprobe: boolean): Promise<void> {
       const seiteIframes = (html.match(/<iframe/gi) ?? []).length;
       const platzhalter = (html.match(/\[iframe\]/g) ?? []).length;
       const guard = befunde.filter((b) => b.code === "guard.removed");
-      const nenntIframe = befunde.filter((b) => /iframe/i.test(b.message));
+      const ersetzt = befunde.filter((b) => b.code === "prepare.frame-replaced");
       // Obsidians Renderer, roh (ohne Vorbehandlung): dieselbe Notiz im Lesefenster; Kontrolle: das letzte Stück der Notiz (rohes details) wurde gezeichnet.
       await oeffneLesemodus(cdp, "beispiel/anhang/blöcke.md");
       const roh = await zeichneLesefenster(cdp);
@@ -485,8 +485,8 @@ async function lauf(gegenprobe: boolean): Promise<void> {
       const weg =
         roh.iframes === 0 ? "der Renderer entfernt das iframe schon beim Zeichnen"
         : "der Renderer laesst das iframe stehen, die Vorbehandlung (export-prepare) ersetzt es vor dem Zeichnen";
-      const befundWeg = guard.length === 0 && nenntIframe.length === 0 ? "kein Befund fuer das iframe in der Ergebnisdatei" : `Befund: ${[...guard, ...nenntIframe].map((b) => `${b.code} ${b.message}`).join(" | ")}`;
-      const ok = seiteIframes === 0;
+      const befundWeg = ersetzt.length === 0 ? "KEIN Befund fuer das iframe in der Ergebnisdatei" : `Befund: ${ersetzt.map((b) => `${b.code} (${b.severity}) ${b.message}`).join(" | ")}`;
+      const ok = seiteIframes === 0 && ersetzt.length === 1 && ersetzt[0]?.severity === "info";
       bilanz.record("P7", ok,
         `roher Renderer (Lesefenster): ${roh.iframes} iframe${roh.iframeHtml ? ` ${roh.iframeHtml}` : ""} (Kontrolle: Ende der Notiz gezeichnet, details ${roh.details}) -> ${weg}; Seite: ${seiteIframes} iframe, Platzhalter "[iframe]" ${platzhalter}x; ` +
         `guard.removed ${guard.length}x${guard.length ? ` (${guard.map((b) => b.message).join("; ")})` : ""}; ${befundWeg}; Befunde gesamt ${befunde.length}`);

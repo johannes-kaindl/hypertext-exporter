@@ -139,6 +139,10 @@ describe('Beispielordner (Abnahmefall 2) bis zur fertigen Seite', () => {
     expect(count(result.findings, CODES.mediaRemoteSkipped)).toBe(1);
     expect(count(result.findings, CODES.mediaLater)).toBe(2);
     expect(count(result.findings, CODES.outputSize)).toBe(1);
+    // Satz 18: der rohe Rahmen wird ersetzt, der Befund erscheint einmal (Stufe info, an der Notiz)
+    const frame = result.findings.filter((f) => f.code === CODES.prepareFrameReplaced);
+    expect(frame).toHaveLength(1);
+    expect(frame[0]).toMatchObject({ severity: 'info', notePath: 'beispiel/anhang/blöcke.md' });
     expect(page.querySelectorAll('img[src^="data:"]')).toHaveLength(2);
     expect(page.querySelector('.ht-media-missing')?.textContent).toContain('fehlt.png');
     // Navigation: Einstieg, dann die Gruppen
