@@ -53,6 +53,66 @@ describe('finalCheck', () => {
     expect(codes(html)).toEqual(codes(html));
   });
 
+  describe('Schreibweisen, die der Browser gleich liest (Sicherheits-Review Etappe 10, Befund 5)', () => {
+    it.each([
+      ['Großschreibung APP://', '<img src="APP://abc/x.png">'],
+      ['gemischt Capacitor://', '<img src="Capacitor://localhost/_capacitor_file_/x">'],
+      ['FILE://', '<a href="FILE:///etc/passwd">x</a>'],
+      ['app:%2F%2F', '<img src="app:%2F%2Fabc/x.png">'],
+      ['Prozent klein app:%2f%2f', '<img src="app:%2f%2fabc/x.png">'],
+      ['app:&#47;&#47;', '<img src="app:&#47;&#47;abc/x.png">'],
+      ['app:&#x2f;&#x2F;', '<img src="app:&#x2f;&#x2F;abc/x.png">'],
+      ['Entity ohne Semikolon app:&#47&#47', '<img src="app:&#47&#47abc/x.png">'],
+      ['app:&sol;&sol;', '<img src="app:&sol;&sol;abc/x.png">'],
+      ['app&colon;//', '<img src="app&colon;//abc/x.png">'],
+      ['&#97;pp://', '<img src="&#97;pp://abc">'],
+      ['Tab im Schema app:/&Tab;/', '<a href="app:/&Tab;/abc">x</a>'],
+      ['Zeilenumbruch im Schema ap&NewLine;p://', '<a href="ap&NewLine;p://abc">x</a>'],
+      ['file:/ mit einem Schrägstrich', '<a href="file:/etc/passwd">x</a>'],
+      ['file:\\ Windows', '<a href="file:\\\\C:\\x">x</a>'],
+      ['Entität und Prozent zusammen app&colon;%2F%2F', '<img src="app&colon;%2F%2Fabc">'],
+    ])('meldet %s als error final.forbidden', (_name, html) => {
+      expect(codes(html)).toEqual(['error:final.forbidden']);
+    });
+
+    it('meldet den Basispfad maskiert (&amp; im Serialisat)', () => {
+      const base = USERS + 'x/A&B Vault';
+      expect(codes(`<img alt="${USERS}x/A&amp;B Vault/x.png">`, base)).toContain('error:final.forbidden');
+      expect(codes(`<img alt="${USERS}x/A&#38;B Vault/x.png">`, base)).toContain('error:final.forbidden');
+    });
+
+    it('meldet den Basispfad in NFC und in NFD, gleich in welcher Form die Seite ihn trägt', () => {
+      const nfc = (USERS + 'x/Ünterlagen').normalize('NFC');
+      const nfd = nfc.normalize('NFD');
+      expect(nfc).not.toBe(nfd);
+      expect(codes(`<p>${nfd}</p>`, nfc)).toContain('error:final.forbidden');
+      expect(codes(`<p>${nfc}</p>`, nfd)).toContain('error:final.forbidden');
+      expect(codes(`<a href="${encodeURI(nfd)}">x</a>`, nfc)).toContain('error:final.forbidden');
+    });
+
+    it('meldet den Basispfad ohne Rücksicht auf Groß und Klein (Dateisysteme am Mac)', () => {
+      expect(codes(`<p>${BASE.toUpperCase()}</p>`, BASE)).toContain('error:final.forbidden');
+    });
+
+    it('meldet den Basispfad mit Entities und Prozent dazwischen', () => {
+      expect(codes(`<p>${BASE.replace(/\//g, '&#47;')}</p>`, BASE)).toContain('error:final.forbidden');
+      expect(codes(`<p>${BASE.replace(/\//g, '%2f')}</p>`, BASE)).toContain('error:final.forbidden');
+    });
+
+    it('Gegenprobe: harmlose Wörter, https:// und ein Pfad mit Prozent geben keinen Befund', () => {
+      expect(codes('<p>Happ und Whatsapp, Profil, file und capacitor</p>', BASE)).toEqual([]);
+      expect(codes('<a href="https://example.org/app/x">x</a><a href="http://example.org/file">y</a>', BASE)).toEqual([]);
+      expect(codes('<a href="https://example.org/?q=a%2Fb&amp;c=%C3%A4">x</a>', BASE)).toEqual([]);
+      expect(codes('<p>app: nicht ganz, app:/ kein Adresse, 100% sicher, &amp; &lt;b&gt;</p>', BASE)).toEqual([]);
+      expect(codes('<p>app:%ZZ//x und %E0%A4%A</p>', BASE)).toEqual([]);
+    });
+
+    it('der Text einer Notiz darf /Users/ als Warnung behalten, auch neben kodierten Schreibweisen', () => {
+      expect(codes(`<p>siehe ${USERS}max/x</p>`)).toEqual(['warning:final.user-path']);
+      expect(codes(`<p>siehe ${USERS}max/x &amp; app&#58;//x</p>`)).toEqual(['error:final.forbidden', 'warning:final.user-path']);
+    });
+  });
+
   it('meldet eine doppelte id als error mark.duplicate und einen toten Sprung als error mark.missing-target (Prüffunktion aus dem Kit, Bestellung 6)', () => {
     const page = document.createElement('div');
     page.innerHTML = '<h2 id="a">A</h2><h2 id="a">A2</h2><p><a href="#a">gut</a> <a href="#weg">tot</a></p>';

@@ -1,14 +1,56 @@
 // Harte Endprüfung (Bauplan Task 10, Spec 10.4 und 10.8): sieht nur den fertigen Text der Seite.
 // Die Marken-Prüfung über die ganze Seite (`mark.duplicate`, `mark.missing-target`) macht allein die Kit-Funktion `checkAnchors` (Bestellung 6).
 import { checkAnchors } from '../vendor/kit/anchor-check';
+import { escapeHtmlAttr, escapeHtmlText } from '../vendor/kit/html-escape';
 import { CODES } from './finding-codes';
 import type { Finding } from './types';
 
+// Gesucht wird in der Form, die der Browser aus der Schreibweise macht (Review Etappe 10, Befund 5): ohne Groß und Klein, mit aufgelösten Entities und Prozentkodierung,
+// ohne Tab und Zeilenumbruch (die ein Browser aus einer Adresse streicht). `file:` ist ein Sonderschema: `file:/` und `file:\` führen ebenso zu einer Datei.
 const FORBIDDEN: Array<{ needle: string; message: string }> = [
   { needle: 'app://', message: 'Die Seite enthält eine app://-Adresse.' },
   { needle: 'capacitor://', message: 'Die Seite enthält eine capacitor://-Adresse.' },
-  { needle: 'file://', message: 'Die Seite enthält eine file://-Adresse.' },
+  { needle: 'file:/', message: 'Die Seite enthält eine file://-Adresse.' },
+  { needle: 'file:\\', message: 'Die Seite enthält eine file://-Adresse.' },
 ];
+
+/** Benannte Entities, die ein Zeichen aus dem Ascii-Bereich ergeben (Adressen bestehen daraus); die Zahlenform löst `decodeEntities` ohne Tabelle. */
+const NAMED_ENTITIES: Readonly<Record<string, string>> = {
+  tab: '\t', newline: '\n', excl: '!', quot: '"', num: '#', dollar: '$', percnt: '%', amp: '&', apos: "'", lpar: '(', rpar: ')', ast: '*', plus: '+', comma: ',',
+  period: '.', sol: '/', colon: ':', semi: ';', lt: '<', equals: '=', gt: '>', quest: '?', commat: '@', lsqb: '[', lbrack: '[', bsol: '\\', rsqb: ']', rbrack: ']',
+  hat: '^', lowbar: '_', grave: '`', lcub: '{', lbrace: '{', verbar: '|', vert: '|', rcub: '}', rbrace: '}',
+};
+
+function codePointText(code: number): string {
+  return code > 0 && code <= 0x10ffff && !(code >= 0xd800 && code <= 0xdfff) ? String.fromCodePoint(code) : '';
+}
+
+/** Löst Zahlen-Entities (mit und ohne Semikolon, wie der Browser) und die benannten aus der Tabelle auf; was nicht lesbar ist, bleibt stehen. */
+function decodeEntities(text: string): string {
+  return text.replace(/&(?:#x([0-9a-f]+);?|#([0-9]+);?|([a-z]+);)/gi, (whole, hex: string | undefined, dec: string | undefined, name: string | undefined) => {
+    if (hex !== undefined) return codePointText(parseInt(hex, 16)) || whole;
+    if (dec !== undefined) return codePointText(parseInt(dec, 10)) || whole;
+    return NAMED_ENTITIES[(name ?? '').toLowerCase()] ?? whole;
+  });
+}
+
+/** Löst Prozentkodierung auf; eine Folge, die kein gültiges UTF-8 ist, wird nur in ihren Ascii-Bytes aufgelöst, damit sie nichts verbirgt. */
+function decodePercent(text: string): string {
+  return text.replace(/(?:%[0-9a-f]{2})+/gi, (run) => {
+    try { return decodeURIComponent(run); } catch { return run.replace(/%([0-7][0-9a-f])/gi, (_m, h: string) => String.fromCharCode(parseInt(h, 16))); }
+  });
+}
+
+/** Der Text der Seite, wie ein Browser ihn als Adresse läse: Entities und Prozent aufgelöst (bis nichts mehr ändert), klein geschrieben. Tab und Umbruch bleiben für die Pfadsuche stehen. */
+function readAsBrowser(html: string): string {
+  let text = html;
+  for (let i = 0; i < 3; i++) {
+    const next = decodePercent(decodeEntities(text));
+    if (next === text) break;
+    text = next;
+  }
+  return text.toLowerCase();
+}
 
 const USER_PATHS: Array<{ needle: string; message: string }> = [
   { needle: '/Users/', message: 'Die Seite enthält Text, der wie ein Benutzerordner aussieht (/Users/).' },
@@ -17,7 +59,8 @@ const USER_PATHS: Array<{ needle: string; message: string }> = [
 ];
 
 /**
- * `error` `final.forbidden` für `app://`, `capacitor://`, `file://` und den Vault-Basispfad (roh, `encodeURI`, `encodeURIComponent`);
+ * `error` `final.forbidden` für `app://`, `capacitor://`, `file://` (ohne Groß und Klein, auch als Entity oder Prozentkodierung geschrieben) und den Vault-Basispfad
+ * (roh, `encodeURI`, `encodeURIComponent`, HTML-maskiert, in NFC und NFD, ohne Groß und Klein, auch mit aufgelösten Entities und Prozent);
  * `warning` `final.user-path` für `/Users/`, `/home/`, `C:\Users` (dürfen als Text einer Notiz vorkommen). Ein Befund je Muster, feste Reihenfolge.
  * Die Meldung nennt den Basispfad nie. `basePath` ist `null` oder leer, wo es keinen gibt (Handy): dann entfällt diese Prüfung.
  *
@@ -25,12 +68,20 @@ const USER_PATHS: Array<{ needle: string; message: string }> = [
  */
 export function finalCheck(html: string, page: HTMLElement, basePath: string | null): Finding[] {
   const findings: Finding[] = [];
+  const raw = html.toLowerCase();
+  const decoded = readAsBrowser(html);
+  const noBreaks = decoded.replace(/[\t\n\r]/g, '');
   for (const { needle, message } of FORBIDDEN) {
-    if (html.includes(needle)) findings.push({ severity: 'error', code: CODES.finalForbidden, message });
+    if (raw.includes(needle) || decoded.includes(needle) || noBreaks.includes(needle)) findings.push({ severity: 'error', code: CODES.finalForbidden, message });
   }
   if (basePath !== null && basePath !== '') {
-    const variants = [basePath, encodeURI(basePath), encodeURIComponent(basePath)];
-    if (variants.some((v) => html.includes(v))) {
+    const needles = new Set<string>();
+    for (const form of [basePath.normalize('NFC'), basePath.normalize('NFD')]) {
+      for (const v of [form, encodeURI(form), encodeURIComponent(form), escapeHtmlText(form), escapeHtmlAttr(form)]) needles.add(v.toLowerCase());
+    }
+    // Die Seite trägt den Pfad roh, maskiert oder kodiert; beide Normalformen der Seite werden gegen beide des Pfades gelesen.
+    const hay = [raw, decoded, noBreaks, raw.normalize('NFC'), raw.normalize('NFD'), decoded.normalize('NFC'), decoded.normalize('NFD')];
+    if (Array.from(needles).some((n) => hay.some((h) => h.includes(n)))) {
       findings.push({ severity: 'error', code: CODES.finalForbidden, message: 'Die Seite enthält den Pfad des Vault-Ordners.' });
     }
   }
