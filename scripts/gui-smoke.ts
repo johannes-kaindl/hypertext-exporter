@@ -21,6 +21,8 @@
  *
  * Bilanz in vier Zustaenden (`bilanz.ts`): gruen, rot, uebersprungen, nichts gemessen. `PUNKTE` ist der Nenner.
  *
+ * Pruefpunkt P12 (Etappe 7, `gui-smoke-live.ts`): Suchskript der Seite in Chrome (Prüfsumme in der CSP, keine Verletzung, Tippen blendet aus, Escape stellt her).
+ *
  * Pruefpunkte P7 bis P10 (Live-Reste der Abnahme Etappe 5, `gui-smoke-live.ts`): rohes iframe (Satz 18), dritter Export nach fremder Mathe,
  * Kaskade der MathJax-Blaetter gegen die Seite in Chrome, rohes details im Druck.
  *
@@ -28,9 +30,11 @@
  * byte-gleich, Abbruch bei Notiz 3 von 300, `Check HTML export` meldet gleich. Mit `--gegenprobe` laeuft nur P1 (rot erwartet).
  */
 
-import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 import { argv, cwd, env } from "node:process";
 
 import {
@@ -70,7 +74,7 @@ const VAULT_NAME = `${REPO_NAME}-smoke`;
 let PORT = 0;
 
 /** Soll-Liste (Nenner der Bilanz). */
-const PUNKTE = ["P1", "P2", "P3", "P4", "P5", "P6", "P7", "P8", "P9", "P10", "P11"] as const;
+const PUNKTE = ["P1", "P2", "P3", "P4", "P5", "P6", "P7", "P8", "P9", "P10", "P11", "P12"] as const;
 
 /** Alle Befehle des Plugins (UI-STANDARD §11, Bauplan Task 13 Step 2). */
 const BEFEHLE = ["export-folder", "export-current-note", "check-export", "open-export", "insert-recipe", "open-view"] as const;
@@ -121,6 +125,7 @@ function zeigeVertrag(): void {
   console.log(`  P9   Formelstile vollstaendig: berechnete Stile der MathJax-Elemente in Obsidian gegen die Seite als file:// in headless Chrome (Port ${CHROME_PORT}), Gegenprobe mit eingeschleuster Regel`);
   console.log("  P10  Kaskade: dieselben Regeln aus dem Stylesheet von Obsidian, durch filterMathCss geordnet (ein Blatt, zwei Blaetter vertauscht), in die Seite gelegt: berechnete Stile gleich");
   console.log("  P11  Druck: rohes details der Seite unter print: ::details-content sichtbar, Text im PDF (printToPDF, pdftotext), Gegenprobe mit versteckender Regel; Range.getBoundingClientRect nur mitgeschrieben");
+  console.log("  P12  Suche: die Seite traegt genau ein <script>, dessen SHA-256 in der CSP steht; als file:// in headless Chrome ohne CSP-Verletzung, der Werkzeug-Block erscheint; ein Wort aus dem Beispiel (Eingabe per Protokoll) blendet Bereiche ohne Treffer aus, hebt hervor und zaehlt, Escape stellt den Stand davor her; Gegenprobe: ein Byte im Skript geaendert, dann bleibt der Block verborgen und die CSP meldet eine Verletzung");
 }
 
 /** Staging-Vault aus `tests/fixtures/` herstellen. `buildVault` erwartet `notes/` und `obsidian/`; die Notizen
@@ -622,6 +627,96 @@ async function lauf(gegenprobe: boolean): Promise<void> {
           `Range.getBoundingClientRect trennt Bildschirm und Druck nicht (Bildschirm ${schirm.text.h}, Druck ${druck.text.h} hoch); Kinder des details: ${druck.kinder.join(",")}`);
       } finally {
         await chrome.stoppe();
+      }
+    });
+    await bilanz.punkt("P12", async () => {
+      const chrome = await oeffneSeiteInChrome(seiteImVault, CHROME_PORT);
+      const aufraeumen: string[] = [];
+      try {
+        const html = readFileSync(seiteImVault, "utf8");
+        const skripte = [...html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)];
+        const skript = skripte[0]?.[1] ?? "";
+        const digest = createHash("sha256").update(skript, "utf8").digest("base64");
+        const csp = /<meta http-equiv="Content-Security-Policy" content="([^"]*)"/.exec(html)?.[1]?.replace(/&#39;/g, "'") ?? "";
+        const inCsp = csp.includes(`script-src 'sha256-${digest}'`);
+        // Verletzungen ab dem Laden: der Fuehler steht vor dem Dokument (neu laden), nicht erst danach.
+        await chrome.cdp.send("Page.enable");
+        await chrome.cdp.send("Page.addScriptToEvaluateOnNewDocument", {
+          source: `window.__htVerletzungen = []; document.addEventListener("securitypolicyviolation", (e) => window.__htVerletzungen.push(e.effectiveDirective + " " + e.blockedURI));`,
+        });
+        const lade = async (url: string): Promise<void> => {
+          await chrome.cdp.send("Page.navigate", { url });
+          await new Promise((r) => setTimeout(r, 400));
+          if ((await pollUntil<boolean>(chrome.cdp, `return document.readyState === "complete" ? true : null;`, 30_000, 200)) === null) throw new Vorbedingung("Seite nicht fertig geladen (30 s)");
+          await new Promise((r) => setTimeout(r, 400));
+        };
+        const ZUSTAND = `
+          const t = document.getElementById("werkzeug");
+          const main = document.querySelector("main#inhalt");
+          return {
+            skripte: document.querySelectorAll("script").length,
+            verletzungen: window.__htVerletzungen ?? null,
+            blockDa: !!t, blockVerborgen: t ? t.hasAttribute("hidden") : null, blockAnzeige: t ? getComputedStyle(t).display : null,
+            verborgen: main ? main.querySelectorAll("[hidden]").length : null,
+            offen: main ? [...main.querySelectorAll("details")].filter((d) => d.open).length : null,
+            zahl: document.getElementById("werkzeug--zahl")?.textContent ?? null,
+            feld: document.getElementById("suche")?.value ?? null,
+            hervorhebungen: typeof CSS !== "undefined" && CSS.highlights ? CSS.highlights.size : -1,
+          };
+        `;
+        interface Zustand { skripte: number; verletzungen: string[] | null; blockDa: boolean; blockVerborgen: boolean | null; blockAnzeige: string | null; verborgen: number | null; offen: number | null; zahl: string | null; feld: string | null; hervorhebungen: number }
+        await lade(pathToFileURL(seiteImVault).href);
+        const davor = await chrome.cdp.evaluate<Zustand>(ZUSTAND);
+        // Ein Wort, das in einigen, aber nicht in allen Notizen der Seite steht (Notizen ohne Notiz darunter); die Textknoten werden mit Leerzeichen verbunden, damit kein Wort ueber zwei Elemente hinweg entsteht.
+        const wort = await chrome.cdp.evaluate<{ wort: string; treffer: number; von: number } | null>(`
+          const blaetter = [...document.querySelectorAll("main#inhalt details[data-ht-note]")].filter((d) => !d.querySelector("details[data-ht-note]"));
+          const tn = (el) => { const w = document.createTreeWalker(el, NodeFilter.SHOW_TEXT); const s = []; for (let n = w.nextNode(); n; n = w.nextNode()) s.push(n.data); return s.join(" ").toLowerCase(); };
+          const texte = blaetter.map((d) => tn(d));
+          const zaehl = new Map();
+          for (const t of texte) for (const w of new Set(t.match(/[a-zäöüß]{6,}/g) ?? [])) zaehl.set(w, (zaehl.get(w) ?? 0) + 1);
+          let best = null;
+          for (const [w, n] of zaehl) if (n < texte.length && (best === null || n < best.treffer)) best = { wort: w, treffer: n, von: texte.length };
+          return best;
+        `);
+        if (wort === null) throw new Vorbedingung("kein Wort gefunden, das nur in einem Teil der Notizen steht");
+        await chrome.cdp.evaluate<boolean>(`document.getElementById("suche").focus(); return true;`);
+        await chrome.cdp.send("Input.insertText", { text: wort.wort });
+        await new Promise((r) => setTimeout(r, 300));
+        const getippt = await chrome.cdp.evaluate<Zustand>(ZUSTAND);
+        const treffer = await chrome.cdp.evaluate<{ sichtbareBlaetter: number; blaetter: number }>(`
+          const blaetter = [...document.querySelectorAll("main#inhalt details[data-ht-note]")].filter((d) => !d.querySelector("details[data-ht-note]"));
+          return { sichtbareBlaetter: blaetter.filter((d) => !d.closest("[hidden]") && !d.hasAttribute("hidden")).length, blaetter: blaetter.length };
+        `);
+        for (const art of ["keyDown", "keyUp"]) {
+          await chrome.cdp.send("Input.dispatchKeyEvent", { type: art, key: "Escape", code: "Escape", windowsVirtualKeyCode: 27, nativeVirtualKeyCode: 27 });
+        }
+        await new Promise((r) => setTimeout(r, 300));
+        const nachEscape = await chrome.cdp.evaluate<Zustand>(ZUSTAND);
+
+        // Gegenprobe: ein Byte im Skript geaendert (Leerzeichen hinter dem ersten "use strict"), CSP unveraendert: das Skript darf nicht laufen.
+        const beschaedigt = html.replace(skript, skript.replace("'use strict';", "'use  strict';"));
+        if (beschaedigt === html) throw new Vorbedingung("Gegenprobe: im Skript fand sich kein 'use strict';");
+        const ordner = mkdtempSync(join(tmpdir(), "ht-p12-"));
+        aufraeumen.push(ordner);
+        const gegenDatei = join(ordner, "beschaedigt.html");
+        writeFileSync(gegenDatei, beschaedigt);
+        await lade(pathToFileURL(gegenDatei).href);
+        const gegen = await chrome.cdp.evaluate<Zustand>(ZUSTAND);
+
+        const ok =
+          skripte.length === 1 && inCsp &&
+          davor.skripte === 1 && (davor.verletzungen?.length ?? -1) === 0 && davor.blockDa && davor.blockVerborgen === false && davor.blockAnzeige !== "none" &&
+          getippt.feld === wort.wort && (getippt.verborgen ?? 0) > (davor.verborgen ?? 0) && treffer.sichtbareBlaetter >= 1 && treffer.sichtbareBlaetter < treffer.blaetter &&
+          (getippt.zahl ?? "") !== "" && getippt.hervorhebungen === 1 &&
+          nachEscape.feld === "" && nachEscape.verborgen === davor.verborgen && nachEscape.offen === davor.offen && nachEscape.hervorhebungen === 0 && (nachEscape.zahl ?? "") === "" &&
+          gegen.blockVerborgen === true && (gegen.verletzungen?.length ?? 0) >= 1;
+        bilanz.record("P12", ok,
+          `${chrome.version}; ${skripte.length} Skript im Text der Seite, SHA-256 ${inCsp ? "steht" : "steht NICHT"} in der CSP (${digest.slice(0, 12)}…, ${skript.length} Zeichen); als file:// ${davor.skripte} Skript, ${davor.verletzungen?.length ?? "?"} CSP-Verletzungen, Werkzeug-Block ${davor.blockVerborgen === false ? `sichtbar (${davor.blockAnzeige})` : "VERBORGEN"}; ` +
+          `Wort „${wort.wort}“ (steht in ${wort.treffer} von ${wort.von} Notizen): ausgeblendet ${davor.verborgen} -> ${getippt.verborgen}, sichtbare Notizen ${treffer.sichtbareBlaetter} von ${treffer.blaetter}, Zahl „${getippt.zahl}“, Hervorhebungen ${getippt.hervorhebungen}, offen ${davor.offen} -> ${getippt.offen}; ` +
+          `Escape: Feld „${nachEscape.feld}“, ausgeblendet ${nachEscape.verborgen}, offen ${nachEscape.offen}, Hervorhebungen ${nachEscape.hervorhebungen}; Gegenprobe (ein Byte im Skript): Block ${gegen.blockVerborgen ? "verborgen" : "SICHTBAR"}, ${gegen.verletzungen?.length ?? "?"} Verletzung(en) ${gegen.verletzungen?.[0] ?? ""}`);
+      } finally {
+        await chrome.stoppe();
+        for (const ordner of aufraeumen) rmSync(ordner, { recursive: true, force: true });
       }
     });
   } finally {

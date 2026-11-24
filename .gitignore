@@ -8,3 +8,4 @@ data.json
 .superpowers/
 .shots.mjs
 .measure-export.mjs
+.measure-search.mjs
