@@ -72,12 +72,6 @@ function filterSelectors(selectors: string[], used: Used): string[] | null {
   return kept.length === 0 ? null : kept;
 }
 
-/** Der Text einer Regel mit neuem Selektor: der Körper bleibt, wie er geschrieben ist. Trägt der alte Selektor einen Kommentar (das Kit setzt ihn im `prelude` zu einem Leerzeichen), bleibt die Regel unverändert. */
-function withSelectors(rule: CssRule, kept: string[]): string {
-  if (!rule.text.startsWith(rule.prelude)) return rule.text;
-  return `${kept.join(', ')} ${rule.text.slice(rule.prelude.length).trimStart()}`;
-}
-
 function filterRules(rules: readonly CssRule[], used: Used, depth: number): Item[] {
   const items: Item[] = [];
   for (const rule of rules) {
@@ -94,7 +88,7 @@ function filterRules(rules: readonly CssRule[], used: Used, depth: number): Item
     } else {
       const kept = filterSelectors(rule.selectors, used);
       if (kept === null) continue;
-      items.push({ t: 'rule', text: kept.length === rule.selectors.length ? rule.text : withSelectors(rule, kept), fonts: fontNames(rule) });
+      items.push({ t: 'rule', text: kept.length === rule.selectors.length ? rule.text : `${kept.join(', ')} {${rule.body}}`, fonts: fontNames(rule) });
     }
   }
   return items;

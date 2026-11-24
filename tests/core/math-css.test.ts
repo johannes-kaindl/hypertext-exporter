@@ -131,6 +131,14 @@ describe('filterMathCss', () => {
     expect(filterMathCss([rule.replace(', .TEX-N', '')], cps('99')).css).toBe('');
   });
 
+  it('filtert auch eine Selektorliste mit Kommentar (früher unverändert durchgereicht): der Körper bleibt, wie er geschrieben ist', () => {
+    const rule = 'mjx-c.mjx-c32::before, /* Hinweis */ .TEX-N {\n  content: "x";\n}';
+    const { css } = filterMathCss([rule], cps('33'));
+    expect(css).toBe('.TEX-N {\n  content: "x";\n}');
+    expect(css).not.toContain('mjx-c32');
+    expect(css).not.toContain('Hinweis');
+  });
+
   it('erkennt fremde Klassen nicht als Codepunkt und hält Zeichenketten und Kommentare aus der Zerlegung heraus', () => {
     const css = '/* mjx-c99 { } */\n.mjx-chtml, .mjx-cell {\n  content: "}{;";\n}\n@media print {\n  mjx-c.mjx-c32::before { content: "2"; }\n  mjx-c.mjx-c33::before { content: "3"; }\n}';
     const { css: out } = filterMathCss([css], cps('33'));
