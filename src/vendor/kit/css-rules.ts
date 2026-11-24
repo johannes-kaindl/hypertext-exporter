@@ -1,4 +1,4 @@
-// vendored from code-kit@0.86.1, src/ts/pure/css-rules.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
+// vendored from code-kit@0.88.0, src/ts/pure/css-rules.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
 import { trimUrlLikeBrowser } from "./safe-markdown";
 
 /** One CSS splitter for the workspace: the rules of a style sheet, the declarations of a block (`style=`), the selector list of a rule and the
@@ -57,6 +57,18 @@ export interface CssRule {
   rules: CssRule[];
   /** The original source of the rule from its prelude to its closing brace (or semicolon), comments and escapes unchanged. */
   text: string;
+  /** The original source between the opening and the closing brace, comments, escapes and nested rules unchanged: `text` without the prelude and
+   *  the two braces, so a caller that swaps the selector list writes `` `${selectors} {${rule.body}}` `` and never re-cuts the block itself. `""` for a
+   *  `statement` (it has no block) and for an unclosed block it runs to the end of the text. */
+  body: string;
+  /** Offsets into the text given to {@link parseCssRules}: `text === src.slice(start, end)` and `body === src.slice(bodyStart, bodyEnd)`. `start` is the
+   *  first character of the prelude, `end` is behind the closing brace (behind the semicolon of a statement; the end of the text when the rule is
+   *  unclosed). `bodyStart` is behind the opening brace, `bodyEnd` is at the closing brace (the end of the text when unclosed). A statement has no
+   *  block: `bodyStart === bodyEnd === end`. */
+  start: number;
+  end: number;
+  bodyStart: number;
+  bodyEnd: number;
   /** False when the text ended before the block did. */
   closed: boolean;
 }
@@ -93,7 +105,7 @@ function declarationOf(part: string): CssDeclaration | null {
   return { name: rawName.toLowerCase(), rawName, value, important };
 }
 
-interface Frame { rule: CssRule; start: number }
+interface Frame { rule: CssRule }
 
 /** The one scanner behind {@link parseCssRules} and {@link parseCssDeclarations}: `block` reads a declaration list (`style=`), where `{` and `}` are
  *  ordinary characters, as the old `parseDeclarations` did. */
@@ -124,7 +136,7 @@ function scan(src: string, block: boolean, maxDepth: number): { rules: CssRule[]
     if (part === "") return;
     const top = stack.at(-1)?.rule;
     if (!block && part.startsWith("@")) {
-      (top?.rules ?? root).push(makeRule("statement", part, src.slice(start, end), true));
+      (top?.rules ?? root).push(makeRule("statement", part, src, start, end, end, end, true));
       return;
     }
     const d = declarationOf(part);
@@ -134,7 +146,12 @@ function scan(src: string, block: boolean, maxDepth: number): { rules: CssRule[]
     flush(end);
     const f = stack.pop();
     if (f === undefined) return;
-    f.rule.text = src.slice(f.start, eof ? src.length : end + 1);
+    const bodyEnd = eof ? src.length : end;
+    const ruleEnd = eof ? src.length : end + 1;
+    f.rule.text = src.slice(f.rule.start, ruleEnd);
+    f.rule.body = src.slice(f.rule.bodyStart, bodyEnd);
+    f.rule.end = ruleEnd;
+    f.rule.bodyEnd = bodyEnd;
     f.rule.closed = !eof;
     (stack.at(-1)?.rule.rules ?? root).push(f.rule);
   };
@@ -161,7 +178,7 @@ function scan(src: string, block: boolean, maxDepth: number): { rules: CssRule[]
       buf = "";
       tail = "";
       segStart = -1;
-      stack.push({ rule: makeRule(kindOf(prelude, stack.at(-1)?.rule), prelude, "", false), start });
+      stack.push({ rule: makeRule(kindOf(prelude, stack.at(-1)?.rule), prelude, src, start, start, i + 1, i + 1, false) });
     } else if (!block && ch === "}") close(i, false);
     else put(ch, i);
   }
@@ -182,7 +199,8 @@ function kindOf(prelude: string, parent: CssRule | undefined): CssRuleKind {
   return GROUP_AT_RULES.has(name) ? "group" : "at";
 }
 
-function makeRule(kind: CssRuleKind, prelude: string, text: string, closed: boolean): CssRule {
+/** A rule as far as it is known at its start; `scan` fills `text`, `body`, `end` and `bodyEnd` when the block closes (a statement is complete at once). */
+function makeRule(kind: CssRuleKind, prelude: string, src: string, start: number, end: number, bodyStart: number, bodyEnd: number, closed: boolean): CssRule {
   const isAt = prelude.startsWith("@");
   return {
     kind,
@@ -191,7 +209,12 @@ function makeRule(kind: CssRuleKind, prelude: string, text: string, closed: bool
     selectors: kind === "style" || kind === "keyframe" ? splitCssList(prelude) : [],
     declarations: [],
     rules: [],
-    text,
+    text: src.slice(start, end),
+    body: src.slice(bodyStart, bodyEnd),
+    start,
+    end,
+    bodyStart,
+    bodyEnd,
     closed,
   };
 }

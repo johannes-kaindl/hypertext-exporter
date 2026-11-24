@@ -1,4 +1,4 @@
-// vendored from code-kit@0.86.1, src/ts/web/svg-guard.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
+// vendored from code-kit@0.88.0, src/ts/web/svg-guard.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
 import { CSS_RISKY, CSS_RISKY_PLAIN, isLocalRef, normalizeUrlRef, trimUrlLikeBrowser } from "./safe-markdown";
 import { cssFragmentIds, decodeFragmentId, parseCssDeclarations, parseCssRules, type CssRule } from "./css-rules";
 import { errorMessage } from "./error-message";
@@ -292,7 +292,14 @@ function isFragmentUrl(body: string): boolean {
 
 /** THE `url(` scan, for attributes and for CSS: `loose` is true when some call is not a closed `url(#fragment)`;
  *  `rest` is the text with the allowed calls taken out, for the other lists. A call is delimited by the next `)`
- *  or `(`, so one call cannot swallow the next. */
+ *  or `(`, so one call cannot swallow the next.
+ *
+ *  **This is not `readCssUrls` of `pure/css-rules`, on purpose (measured Welle 37, `tests/svg-guard-url-readers.test.ts`).** The two read the same syntax and differ in six forms
+ *  (no backslash; a backslash is refused before this scan decides anything). Here a quoted body is cut at the first `)` or `(`, and a call needs its `)`; `readCssUrls` ends a quoted body at its
+ *  closing quote. (1) A string that is not closed: allowed here (up to the first `)`), refused there. (2) `(` inside a closed string, and (3) no `)` after a closed string: refused here,
+ *  allowed there. (4) `)` inside a closed string, and (5) text between the closing quote and `)`: both allow, and the `rest` differs. (6) `readCssUrls` skips what JavaScript calls white
+ *  space in front of the body (U+00A0, U+FEFF, U+2028 …), CSS and the URL parser do not: `url(NBSP#a)` is no fragment to a browser, it is refused here and allowed there. So the guard
+ *  does not switch to `readCssUrls`: that would loosen the verdict in (2), (3) and (6). Case (6) is a defect of `readCssUrls`, not of this scan. */
 function scanUrlCalls(text: string): { loose: boolean; rest: string } {
   let loose = false;
   let rest = "";

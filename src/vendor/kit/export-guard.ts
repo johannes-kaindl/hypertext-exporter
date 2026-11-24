@@ -1,4 +1,4 @@
-// vendored from code-kit@0.86.1, src/ts/web/export-guard.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
+// vendored from code-kit@0.88.0, src/ts/web/export-guard.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
 import { parseCssDeclarations, parseCssRules, readCssUrls, type CssDeclaration } from "./css-rules";
 import { trimUrlLikeBrowser } from "./safe-markdown";
 import { linkScheme } from "./link-guard";

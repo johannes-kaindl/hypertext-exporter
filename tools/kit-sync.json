@@ -4,7 +4,7 @@
       "ref": "0.106.0"
     },
     "code-kit": {
-      "ref": "0.86.1"
+      "ref": "0.88.0"
     }
   },
   "targets": [
@@ -21,6 +21,7 @@
         "sha256",
         "data-url",
         "validate-input",
+        "string-list",
         "run-state",
         "cooperative-yield",
         "timeout",
@@ -43,7 +44,8 @@
         "field-template",
         "screen-document",
         "anchor-marks",
-        "css-rules"
+        "css-rules",
+        "page-search"
       ]
     },
     {
