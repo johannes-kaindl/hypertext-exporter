@@ -16,7 +16,7 @@ import { FindingList } from '../core/findings';
 import { finalCheck, finalGuard } from '../core/final-check';
 import { filterMathCss } from '../core/math-css';
 import { buildOverview, summaryLine } from '../core/overview';
-import { buildPage } from '../core/page';
+import { buildPage, pageScript } from '../core/page';
 import { DEFAULT_RECIPE, notYetFindings, parseRecipe } from '../core/recipe';
 import { resultJson } from '../core/result-file';
 import { buildSet } from '../core/set';
@@ -294,7 +294,7 @@ export async function runExport(host: PipelineHost, req: ExportRequest, run: Run
   const parsed = new DOMParser().parseFromString(html, 'text/html').documentElement;
   findings.addAll(finalCheck(html, parsed, deps.basePath !== undefined ? deps.basePath : readBasePath(app)));
   // Zweiter Schutzdurchgang auf dem neu gelesenen Text (verändert `parsed`, deshalb nach der Endprüfung)
-  findings.addAll(finalGuard(parsed));
+  findings.addAll(finalGuard(parsed, pageScript(recipe.lang)));
   if (findings.hasError()) return result(false);
 
   // 12 (Form): `auto` wählt in Etappe 5 immer `file`; das Paket kommt in Etappe 6. Die Größe steht als Hinweis, über der Grenze zusätzlich als Warnung.

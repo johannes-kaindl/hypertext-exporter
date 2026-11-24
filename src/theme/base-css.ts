@@ -58,6 +58,52 @@ nav {
   border-bottom: 1px solid var(--ht-border);
 }
 
+/* Das Attribut hidden muss gegen jede Regel mit display gewinnen (der Werkzeug-Block setzt display; das Skript der Suche blendet mit hidden aus). */
+[hidden] {
+  display: none !important;
+}
+
+/* Werkzeug-Block (Suche, Alles auf und zu): steht vor der Navigation, außerhalb von main (contain: paint beschneidet ihn nicht), bleibt hidden, bis das Skript ihn zeigt. */
+#werkzeug {
+  box-sizing: border-box;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: calc(var(--ht-space) * 0.5) var(--ht-space);
+  max-width: var(--ht-measure);
+  margin: 0 auto;
+  padding: var(--ht-space) calc(var(--ht-space) * 2);
+  border-bottom: 1px solid var(--ht-border);
+}
+
+#werkzeug label {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+}
+
+#suche {
+  box-sizing: border-box;
+  flex: 1 1 12em;
+  min-width: 0;
+  min-height: 44px;
+  padding: 0 var(--ht-space);
+  border: 1px solid var(--ht-border);
+  border-radius: var(--ht-radius);
+  background: var(--ht-surface);
+  color: var(--ht-text);
+  font: inherit;
+}
+
+#werkzeug [role="status"] {
+  color: var(--ht-text-dim);
+}
+
+::highlight(ht-treffer) {
+  background-color: var(--ht-highlight);
+  color: var(--ht-text);
+}
+
 nav ul {
   display: flex;
   flex-wrap: wrap;
@@ -452,6 +498,7 @@ const PRINT = String.raw`
   }
 
   nav,
+  #werkzeug,
   .ht-skip {
     display: none;
   }

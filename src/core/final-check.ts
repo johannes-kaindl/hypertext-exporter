@@ -128,10 +128,15 @@ const GUARD_KIND_LABEL: Record<ExportGuardFinding['kind'], string> = {
  * die der Durchgang für fremden Text entfernen würde. Der Baum wird dabei verändert; Aufrufer nehmen ihn danach nicht mehr für andere Prüfungen.
  * Eine Zeichnung als Bild (`<img src="data:image/svg+xml;base64,…">`) setzt der Medienschritt nach `checkSvg` ein; der Durchgang lässt `data:image/svg+xml` als Ziel nicht zu (als Rahmen oder
  * Link liefe es). Hier wird ein solches Bild darum erneut mit `checkSvg` geprüft: besteht es, ist es kein Befund, sonst bleibt sein `src` stehen und der Durchgang meldet es.
+ * `ownScript` ist der Text des einen Skripts, das die Seite selbst trägt (`pageScript`); es wird vor dem Durchgang aus dem Baum genommen.
  * Alle Stellen gehen in einen Befund (Art, Element, Name, Zahl), sonst wüchse die Liste mit jedem Treffer.
  */
-export function finalGuard(page: ParentNode): Finding[] {
+export function finalGuard(page: ParentNode, ownScript?: string): Finding[] {
   const body = page.querySelector('body') ?? page;
+  // Das eine Skript der Seite (Suche und Aufklapp-Helfer, Prüfsumme in der CSP) gehört der Seite, nicht dem fremden Text: nur ein Skript mit genau diesem Text bleibt unbeachtet, jedes andere ist ein Befund.
+  if (ownScript !== undefined) {
+    for (const script of Array.from(body.querySelectorAll('script'))) if (script.textContent === ownScript) script.remove();
+  }
   for (const img of Array.from(body.querySelectorAll('img'))) {
     if (svgImageIsChecked(img.getAttribute('src') ?? '')) img.removeAttribute('src');
   }

@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
 import { finalCheck, finalGuard } from '../../src/core/final-check';
+import { buildPage, pageScript } from '../../src/core/page';
 import { guardExportTree } from '../../src/vendor/kit/export-guard';
 
 const PAGE = document.createElement('div');
@@ -183,5 +184,46 @@ describe('finalGuard (zweiter Schutzdurchgang auf dem neu gelesenen Text der Sei
     expect(out).toHaveLength(1);
     expect(out[0]?.code).toBe('final.guard');
     expect(out[0]?.message).toContain('×30');
+  });
+});
+
+describe('die fertige Seite mit Werkzeug-Block und Skript (Etappe 7)', () => {
+  function body(html: string): HTMLElement {
+    const el = document.createElement('div');
+    el.innerHTML = html;
+    return el;
+  }
+  function pageOf(html: string, lang: 'en' | 'de' = 'de'): { text: string; doc: HTMLElement } {
+    const text = buildPage({ title: 'T', lang, toc: [{ anchor: 'a', title: 'A' }], body: body(html), css: 'body{margin:0}', mathCss: '', stamp: '' });
+    return { text, doc: new DOMParser().parseFromString(text, 'text/html').documentElement };
+  }
+
+  it('besteht Endprüfung und Schutzdurchgang ohne Befund: Werkzeug-Block (Eingabefeld, Schaltflächen) und das eigene Skript sind kein fremder aktiver Inhalt', () => {
+    const { text, doc } = pageOf('<h1 id="a">Titel</h1><details data-ht-note="a" open><summary>A</summary><p>Text</p></details>');
+    expect(finalCheck(text, doc, null)).toEqual([]);
+    expect(finalGuard(doc, pageScript('de'))).toEqual([]);
+  });
+
+  it('meldet ein fremdes Skript im Inhalt, auch wenn die Seite ein eigenes trägt (Gegenprobe: ohne ownScript meldet der Durchgang das eigene)', () => {
+    const { doc } = pageOf('<p>x</p><script>alert(1)</script>');
+    const found = finalGuard(doc, pageScript('de'));
+    expect(found.map((f) => f.code)).toEqual(['final.guard']);
+    expect(found[0]?.message).toContain('script');
+    const own = pageOf('<p>x</p>');
+    expect(finalGuard(own.doc).map((f) => f.code)).toEqual(['final.guard']);
+  });
+
+  it.each(['suche', 'werkzeug', 'werkzeug--auf'])('Clobbering: ein id="%s" aus dem Notiztext ist als doppelte Marke ein error mark.duplicate, der Export schreibt nichts', (id) => {
+    const { text, doc } = pageOf(`<p id="${id}">fremd</p>`);
+    const found = finalCheck(text, doc, null).filter((f) => f.code === 'mark.duplicate');
+    expect(found.map((f) => f.severity)).toEqual(['error']);
+    expect(found[0]?.message).toContain(`„${id}“`);
+  });
+
+  it('Clobbering: ein Element mit name="suche" oder name="getElementById" ändert den Werkzeug-Block nicht (das Skript liest nichts vom Dokument ab)', () => {
+    const { text, doc } = pageOf('<img name="getElementById"><form name="querySelector"><input name="addEventListener"></form>');
+    expect(finalCheck(text, doc, null).filter((f) => f.code === 'mark.duplicate')).toEqual([]);
+    expect(pageScript('de')).toContain('DP.getElementById');
+    expect(pageScript('de')).not.toMatch(/document\.(getElementById|querySelector)/);
   });
 });

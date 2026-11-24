@@ -109,7 +109,7 @@ describe("Grundgestaltung", () => {
   it("druckt auf weißem Grund, ohne Navigation, mit offenen Bereichen und sichtbaren Adressen", () => {
     const css = flat(printBlock);
     expect(css).toMatch(/html, body \{ background: #ffffff;/);
-    expect(css).toMatch(/nav, \.ht-skip \{ display: none; \}/);
+    expect(css).toMatch(/nav, #werkzeug, \.ht-skip \{ display: none; \}/);
     expect(css).toContain('a[href^="http"]::after { content: " (" attr(href) ")";');
     expect(css).toContain("details::details-content { content-visibility: visible; }");
     expect(css).toMatch(/details:not\(\[open\]\) > summary::before/);
@@ -118,6 +118,17 @@ describe("Grundgestaltung", () => {
   it("hält ein position:fixed aus dem Notizinhalt im Bereich des Inhalts (contain: paint auf main, im Druck zurückgenommen)", () => {
     expect(flat(beforePrint)).toMatch(/(^| )main \{[^}]*contain: paint;/);
     expect(flat(printBlock)).toMatch(/main \{[^}]*contain: none;/);
+  });
+
+  it("lässt hidden gegen jede display-Regel gewinnen und gestaltet den Werkzeug-Block nur mit Tokens, Eingabefeld 44 px hoch, Hervorhebung in --ht-highlight", () => {
+    const css = flat(BASE_CSS);
+    expect(css).toContain("[hidden] { display: none !important; }");
+    expect(css).toMatch(/#werkzeug \{[^}]*display: flex;/);
+    expect(css).toMatch(/#suche \{[^}]*min-height: 44px;/);
+    expect(css).toMatch(/#werkzeug label \{[^}]*min-height: 44px;/);
+    expect(css).toMatch(/::highlight\(ht-treffer\) \{[^}]*background-color: var\(--ht-highlight\);/);
+    // Der Werkzeug-Block steht nicht in main: contain: paint trifft ihn nicht.
+    expect(flat(printBlock)).toMatch(/#werkzeug/);
   });
 
   it("sorgt am Handy für eine Spalte ohne waagerechtes Scrollen", () => {

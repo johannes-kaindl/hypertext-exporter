@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
-import { buildPage, type PageInput } from '../../src/core/page';
+import { buildPage, pageScript, SEARCH_IDS, type PageInput } from '../../src/core/page';
+import { assignNoteMarks, createNoteMarks } from '../../src/vendor/kit/anchor-marks';
 import { sha256Base64Utf8 } from '../../src/vendor/kit/sha256';
 
 function makeBody(html = '<h1 id="a--x">Titel</h1><p>Text</p>'): HTMLElement {
@@ -53,13 +54,54 @@ describe('buildPage', () => {
     expect(style).toBe('body{margin:0}\n.x::before{content:"\\3C "}');
   });
 
-  it('trägt in der CSP die SHA-256 des ausgegebenen style-Inhalts, script-src none', () => {
+  it('trägt in der CSP die SHA-256 des ausgegebenen style-Inhalts und genau eines Skripts, dessen Prüfsumme dort steht (kein script-src none)', () => {
     const html = buildPage(input());
     const style = /<style>([\s\S]*?)<\/style>/.exec(html)?.[1] ?? '';
     const csp = parse(html).querySelector('meta[http-equiv="Content-Security-Policy"]')?.getAttribute('content') ?? '';
     expect(csp).toContain(`style-src 'sha256-${sha256Base64Utf8(style)}'`);
-    expect(csp).toContain("script-src 'none'");
-    expect(html).not.toContain('<script');
+    expect(html.match(/<script[\s>]/g)).toHaveLength(1);
+    const script = /<script>([\s\S]*?)<\/script>/.exec(html)?.[1] ?? '';
+    expect(script).toBe(pageScript('de'));
+    expect(csp).toContain(`script-src 'sha256-${sha256Base64Utf8(script)}'`);
+    expect(csp).not.toContain("script-src 'none'");
+    expect(script).not.toMatch(/<\/script|<!--/);
+  });
+
+  it('setzt den Werkzeug-Block vor die Navigation, außerhalb von main, hidden, mit den Ids der reservierten Marken und Texten je lang', () => {
+    for (const [lang, label, expand] of [['de', 'Suchen', 'Alles aufklappen'], ['en', 'Search', 'Expand all']] as const) {
+      const doc = parse(buildPage(input({ lang })));
+      const tools = doc.querySelector('div#werkzeug');
+      expect(tools?.hasAttribute('hidden')).toBe(true);
+      expect(tools?.getAttribute('role')).toBe('search');
+      expect(tools?.nextElementSibling?.tagName).toBe('NAV');
+      expect(doc.body.firstElementChild).toBe(tools);
+      expect(doc.querySelector('main')?.contains(tools ?? null)).toBe(false);
+      expect(tools?.querySelector('label[for="suche"]')?.textContent).toBe(label);
+      expect(tools?.querySelector('input#suche[type="search"]')).not.toBeNull();
+      expect(tools?.querySelector('#werkzeug--auf')?.textContent).toBe(expand);
+      for (const button of Array.from(tools?.querySelectorAll('button') ?? [])) expect(button.getAttribute('type')).toBe('button');
+    }
+  });
+
+  it('wählt Ids, die keine Marke der Seite vergibt (reserviert oder mit doppeltem Bindestrich hinter einer vergebenen Notizmarke)', () => {
+    expect(Object.values(SEARCH_IDS)).toEqual(['werkzeug', 'suche', 'werkzeug--leeren', 'werkzeug--zahl', 'werkzeug--auf', 'werkzeug--zu']);
+    const noteMarks = assignNoteMarks([{ path: 'werkzeug.md' }, { path: 'suche.md' }, { path: 'werkzeug-leeren.md' }, { path: 'werkzeug/zahl.md' }]);
+    expect(noteMarks).not.toContain('werkzeug');
+    expect(noteMarks).not.toContain('suche');
+    const ids = new Set<string>(Object.values(SEARCH_IDS));
+    for (const mark of noteMarks) {
+      expect(ids.has(mark), mark).toBe(false);
+      const marks = createNoteMarks(mark);
+      for (const m of [marks.heading('Leeren'), marks.heading('Zahl'), marks.footnote(1), marks.embed(1).mark]) expect(ids.has(m), m).toBe(false);
+    }
+  });
+
+  it('bekommt jede Seite dieselben Skript-Bytes in beiden Sprachen nur über die Texte (zwei Läufe gleich, Sprachen verschieden)', () => {
+    expect(pageScript('de')).toBe(pageScript('de'));
+    expect(pageScript('de')).not.toBe(pageScript('en'));
+    expect(pageScript('en')).toContain('No matches');
+    expect(pageScript('de')).toContain('Keine Treffer');
+    expect(pageScript('de')).toContain('details[data-ht-note], details[data-export-fold=\\"section\\"]');
   });
 
   it('setzt den Sprunglink auf #inhalt aus der festen Tabelle je lang', () => {

@@ -1,6 +1,7 @@
 // Seitenaufbau (Bauplan Task 10, Spec 10.2 und 12): setzt Navigation, Inhalt, Stile und Stempel zusammen.
 // Das vollständige Dokument (Kopf, CSP mit der Prüfsumme genau des ausgegebenen `<style>`-Inhalts, Zeilenenden) baut das Kit (`buildScreenDocument`, Bestellung 9).
 import { escapeHtmlAttr, escapeHtmlText } from '../vendor/kit/html-escape';
+import { buildPageSearchControls, buildPageSearchScript, type PageSearchConfig } from '../vendor/kit/page-search';
 import { buildScreenDocument } from '../vendor/kit/screen-document';
 import { PAGE_TEXTS, type PageLang } from './page-texts';
 
@@ -17,6 +18,45 @@ export interface PageInput {
   mathCss: string;
   /** `stampMeta(...)`: `<meta>`-Zeilen für den Kopf; "" schreibt nichts. */
   stamp: string;
+}
+
+/**
+ * Ids des Werkzeug-Blocks (Spec 10.4, 10.5). `werkzeug` und `suche` sind reservierte Marken (kein Notiz- oder Gruppenname bekommt sie).
+ * Die übrigen tragen `werkzeug--`: ein doppelter Bindestrich kommt in keinem Slug vor, und eine Marke mit `--` entsteht nur als `<Notizmarke>--<Teil>`;
+ * die Notizmarke `werkzeug` ist vergeben, also kann keine Überschrift, Fußnote oder Einbettung so heißen. (`werkzeug-leeren` als Notizname wäre möglich gewesen.)
+ */
+export const SEARCH_IDS = {
+  tools: 'werkzeug',
+  input: 'suche',
+  clear: 'werkzeug--leeren',
+  count: 'werkzeug--zahl',
+  expandAll: 'werkzeug--auf',
+  collapseAll: 'werkzeug--zu',
+} as const;
+
+/** Name der CSS-Hervorhebung; die Grundgestaltung setzt `::highlight(ht-treffer)`. */
+export const HIGHLIGHT_NAME = 'ht-treffer';
+
+/** Die Einheiten der Suche: Notizen und Abschnitte der Seite, gesucht und aufgeklappt wird unter `main#inhalt`. */
+export function searchConfig(lang: PageLang): PageSearchConfig {
+  const t = PAGE_TEXTS[lang].search;
+  return {
+    rootSelector: 'main#inhalt',
+    unitSelector: 'details[data-ht-note], details[data-export-fold="section"]',
+    ids: { ...SEARCH_IDS },
+    texts: { countMany: t.countMany, countOne: t.countOne, countNone: t.countNone },
+    highlightName: HIGHLIGHT_NAME,
+  };
+}
+
+/** Das eine Skript der Seite (Kit `page-search`); die Prüfsumme steht in der CSP, der Schutzdurchgang nimmt genau diesen Text aus. */
+export function pageScript(lang: PageLang): string {
+  return buildPageSearchScript(searchConfig(lang));
+}
+
+function tools(lang: PageLang): string {
+  const t = PAGE_TEXTS[lang].search;
+  return buildPageSearchControls(searchConfig(lang), { search: t.label, clear: t.clear, expandAll: t.expandAll, collapseAll: t.collapseAll });
 }
 
 const HEAD_ANCHOR = '</title>\n';
@@ -51,17 +91,18 @@ function contentHtml(body: HTMLElement): string {
 }
 
 /**
- * Das vollständige, eigenständige HTML-Dokument. Ein `<style>` (Grundgestaltung und Thema, dann MathJax-Stile), kein Skript, nur `\n`; gleiche Eingabe ergibt gleiche Bytes.
+ * Das vollständige, eigenständige HTML-Dokument. Ein `<style>` (Grundgestaltung und Thema, dann MathJax-Stile), ein `<script>` (Suche und Aufklapp-Helfer des Kits, Prüfsumme in der CSP), nur `\n`;
+ * gleiche Eingabe ergibt gleiche Bytes. Der Werkzeug-Block steht vor der Navigation, außerhalb von `main` (`contain: paint` beschneidet ihn so nicht) und ist `hidden`, bis das Skript ihn zeigt.
  *
  * Der Stempel steht im Kopf direkt hinter `<title>`: `buildScreenDocument` kennt keinen Platz für zusätzliche Kopfzeilen, und die Prüfsumme der CSP deckt nur den Inhalt
  * zwischen `<style>` und `</style>`, den der Einschub nicht berührt. Der Titel ist maskiert, das erste `</title>\n` ist also das echte.
  *
- * Ohne Skript kann das Kit nicht scheitern (Fehler gibt es nur für `</script` und `<!--` im Skript); der Fehlerzweig ist deshalb ein Programmfehler und wirft.
+ * Das Skript ist fest (nur `lang` ändert die Texte) und enthält weder `</script` noch `<!--`; der Fehlerzweig des Kits ist deshalb ein Programmfehler und wirft.
  */
 export function buildPage(input: PageInput): string {
   const css = input.mathCss === '' ? input.css : `${input.css}\n${input.mathCss}`;
-  const bodyHtml = `${navigation(input)}\n<main id="inhalt">\n${contentHtml(input.body)}\n</main>`;
-  const result = buildScreenDocument({ title: input.title, lang: input.lang, css, bodyHtml });
+  const bodyHtml = `${tools(input.lang)}${navigation(input)}\n<main id="inhalt">\n${contentHtml(input.body)}\n</main>`;
+  const result = buildScreenDocument({ title: input.title, lang: input.lang, css, script: pageScript(input.lang), bodyHtml });
   if (!result.ok) throw new Error(`buildPage: Kit-Dokument abgelehnt (${result.error})`);
   if (input.stamp === '') return result.html;
   const at = result.html.indexOf(HEAD_ANCHOR);
