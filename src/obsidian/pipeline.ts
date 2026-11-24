@@ -150,12 +150,30 @@ function makeExtras(set: ExportSet, recipe: Recipe, doc: Document): { extras: Pa
   return { extras, findings };
 }
 
-/** Benutzte MathJax-Zeichen im gezeichneten Baum und die Stile des Fensters, gefiltert (Spec 4b); ohne Formel nichts. */
+/**
+ * Die Regeln der MathJax-Stile des Fensters, je Regel `cssText`. MathJax hängt Regeln für neue Zeichen und Bauteile per `insertRule` an; der Textinhalt des
+ * `<style>`-Elements wächst dabei nicht mit (gemessen 2026-11-24: 11688 Zeichen Text, 164 bis 207 Regeln im Blatt), das CSSOM trägt alles.
+ * Ein Element ohne lesbares Blatt fällt auf seinen Textinhalt zurück.
+ */
+export function windowMathStyles(): string[] {
+  return Array.from(activeDocument.querySelectorAll('style#MJX-CHTML-styles')).map((el) => {
+    const sheet = (el as HTMLStyleElement).sheet;
+    if (sheet === null || sheet === undefined) return el.textContent ?? '';
+    return Array.from(sheet.cssRules, (rule) => rule.cssText).join('\n');
+  });
+}
+
+/** Benutzte MathJax-Zeichen und -Elemente im gezeichneten Baum und die Stile des Fensters, gefiltert (Spec 4b); ohne Formel nichts. */
 function mathCss(roots: Iterable<HTMLElement>, deps: PipelineDeps): { css: string; findings: Finding[] } {
   const used = new Set<string>();
+  const elements = new Set<string>();
   let formulas = false;
   for (const root of roots) {
     if (root.querySelector('mjx-container') !== null) formulas = true;
+    for (const el of Array.from(root.querySelectorAll('*'))) {
+      const name = el.tagName.toLowerCase();
+      if (name.startsWith('mjx-')) elements.add(name);
+    }
     for (const el of Array.from(root.querySelectorAll('mjx-c'))) {
       for (const cls of Array.from(el.classList)) {
         const m = /^mjx-c([0-9A-Fa-f]+)$/.exec(cls);
@@ -164,10 +182,8 @@ function mathCss(roots: Iterable<HTMLElement>, deps: PipelineDeps): { css: strin
     }
   }
   if (!formulas) return { css: '', findings: [] };
-  const styles = deps.mathStyles !== undefined
-    ? deps.mathStyles()
-    : Array.from(activeDocument.querySelectorAll('style#MJX-CHTML-styles')).map((el) => el.textContent ?? '');
-  return filterMathCss(styles, used);
+  const styles = deps.mathStyles !== undefined ? deps.mathStyles() : windowMathStyles();
+  return filterMathCss(styles, used, elements);
 }
 
 function readObsidianLang(): string {

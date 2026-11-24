@@ -156,4 +156,59 @@ describe('filterMathCss', () => {
   it('leere Eingabe ergibt leeren Text ohne Befund', () => {
     expect(filterMathCss([], cps())).toEqual({ css: '', findings: [] });
   });
+
+  describe('Elementfilter (Befund 2026-11-24)', () => {
+    const FRAC = 'mjx-frac {\n  display: inline-block;\n}';
+    const FRAC_DEEP = 'mjx-container[display="true"] mjx-frac > mjx-num {\n  display: block;\n}';
+    const LINE = 'mjx-line {\n  display: block;\n  border-top: 0.07em solid;\n}';
+    const MIXED = 'mjx-mi, mjx-frac {\n  display: inline-block;\n}';
+    const NOT = 'mjx-mi:not(mjx-frac) {\n  color: red;\n}';
+    const PLAIN = '.mjx-keep {\n  color: blue;\n}';
+    const els = (...n: string[]): Set<string> => new Set(n);
+
+    it('lässt Regeln für Elemente weg, die die Seite nicht trägt, und behält die der getragenen', () => {
+      const { css } = filterMathCss([[FRAC, FRAC_DEEP, LINE, PLAIN, BASE_RULES[0]].join('\n')], cps(), els('mjx-container', 'mjx-line'));
+      expect(css).toContain('mjx-line {');
+      expect(css).toContain('mjx-container[overflow="scroll"][display]');
+      expect(css).toContain('.mjx-keep');
+      expect(css).not.toContain('mjx-frac');
+      expect(css).not.toContain('mjx-num');
+    });
+
+    it('Gegenprobe: trägt die Seite das Element, bleibt die Regel; ohne Elementmenge bleibt alles', () => {
+      const sheet = [FRAC, FRAC_DEEP, LINE].join('\n');
+      const mit = filterMathCss([sheet], cps(), els('mjx-container', 'mjx-frac', 'mjx-num', 'mjx-line')).css;
+      expect(mit).toContain('mjx-frac {');
+      expect(mit).toContain('mjx-num {');
+      expect(filterMathCss([sheet], cps()).css).toContain('mjx-frac {');
+    });
+
+    it('filtert Selektorlisten je Selektor; Attributwerte, Klassen und :not() zählen nicht als Element', () => {
+      const { css } = filterMathCss([[MIXED, NOT, 'mjx-mi[data-x="mjx-zzz"].mjx-frac {\n  top: 0;\n}'].join('\n')], cps(), els('mjx-mi'));
+      expect(css).toContain('mjx-mi {\n  display: inline-block;\n}');
+      expect(css).not.toContain('mjx-frac,');
+      expect(css).toContain('mjx-mi:not(mjx-frac) {');
+      expect(css).toContain('mjx-mi[data-x="mjx-zzz"].mjx-frac {');
+    });
+
+    it('Zeichenregeln brauchen Codepunkt und Element, Groß- und Kleinschreibung der Namen ist gleich', () => {
+      const rule = 'mjx-c.mjx-c32::before {\n  content: "2";\n}';
+      expect(filterMathCss([rule], cps('32'), els('MJX-C')).css).toBe(rule);
+      expect(filterMathCss([rule], cps('32'), els('mjx-mi')).css).toBe('');
+      expect(filterMathCss([rule], cps('33'), els('mjx-c')).css).toBe('');
+    });
+
+    it('Determinismus: ein gewachsenes Blatt mit Regeln für fremde Elemente und Zeichen ändert die Bytes nicht', () => {
+      const klein = chtml(CHAR.a, CHAR.two);
+      const gross = [chtml(CHAR.a, CHAR.two, CHAR.bold, CHAR.arrow), FRAC, FRAC_DEEP, LINE, 'mjx-mspace {\n  display: inline-block;\n}'].join('\n');
+      const benutzt = cps('1D44E', '32');
+      const elemente = els('mjx-container', 'mjx-math', 'mjx-mi', 'mjx-c');
+      const a = filterMathCss([klein], benutzt, elemente);
+      const b = filterMathCss([gross], benutzt, elemente);
+      expect(b.css).toBe(a.css);
+      expect(b.findings).toEqual(a.findings);
+      // Gegenprobe: ohne Elementfilter hängen die Bytes am Blatt.
+      expect(filterMathCss([gross], benutzt).css).not.toBe(a.css);
+    });
+  });
 });

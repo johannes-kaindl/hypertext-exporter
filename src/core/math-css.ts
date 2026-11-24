@@ -3,6 +3,7 @@
 // `@font-face` nur für Schriftfamilien, die eine behaltene Regel nennt. Das Einbetten der Schriften als `data:` ist nicht Teil dieses
 // Moduls (es braucht `requestUrl`): ein `@font-face` mit einer Adresse, die nicht `data:` ist, bleibt draußen (die Seite lädt nichts nach; gemessen 2026-11-19 am Beispielordner: sonst 24 blockierte
 // Schriftanfragen und 24 CSP-Verletzungen), je Adresse meldet ein Befund `math.font-url`. Formeln zeigen bis zum Einbetten die Ersatzschrift.
+// Ein Elementfilter (Befund 2026-11-24): eine Regel, deren Selektoren nur `mjx-<name>`-Elemente nennen, die die Seite nicht trägt, fällt weg; so hängen die Bytes nicht an den Regeln, die MathJax für andere Formeln der Sitzung per `insertRule` angehängt hat.
 // Rein: kein obsidian-Import. Zerlegt wird vom CSS-Zerleger des Kits (Bestellung 24, `css-rules`); hier steht nur, was dem Plugin gehört: der Filter nach `mjx-c<HEX>`, die Schriftfamilien und die Reihenfolge.
 import { parseCssRules, readCssUrls, splitCssList, type CssRule } from '../vendor/kit/css-rules';
 import { compareCodePoints } from '../vendor/kit/name-order';
@@ -46,10 +47,26 @@ function normalizeCodepoint(hex: string): string {
   return hex.toUpperCase().replace(/^0+(?=.)/, '');
 }
 
-/** Behält die Selektoren, deren Codepunkt-Klassen alle benutzt sind (Selektoren ohne solche Klassen immer). `null` heißt: nichts bleibt. */
-function filterSelectors(selectors: string[], used: ReadonlySet<string>): string[] | null {
+/** Elementnamen `mjx-<name>` (klein geschrieben), die ein Selektor als Typ nennt: nicht in Zeichenketten, Attributklammern oder `:not(...)`, nie nach `.`, `#`, `:` oder einem Namenszeichen. */
+function mjxElements(selector: string): string[] {
+  const bare = selector
+    .replace(/"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'/g, ' ')
+    .replace(/\[[^\]]*\]/g, ' ')
+    .replace(/:not\([^)]*\)/gi, ' ');
+  return Array.from(bare.matchAll(/(?:^|[^\w.#:\\-])(mjx-[a-z0-9-]+)(?![\w-])/gi), (m) => (m[1] ?? '').toLowerCase());
+}
+
+/** Was die Seite trägt: benutzte Codepunkte und, wenn bekannt, die Namen der `mjx-`-Elemente (`null`: kein Elementfilter). */
+interface Used {
+  codepoints: ReadonlySet<string>;
+  elements: ReadonlySet<string> | null;
+}
+
+/** Behält die Selektoren, deren Codepunkt-Klassen und `mjx-`-Elemente alle benutzt sind (Selektoren ohne solche immer). `null` heißt: nichts bleibt. */
+function filterSelectors(selectors: string[], used: Used): string[] | null {
   const kept = selectors.filter((sel) => {
-    for (const m of sel.matchAll(CODEPOINT_CLASS)) if (!used.has(normalizeCodepoint(m[1]))) return false;
+    for (const m of sel.matchAll(CODEPOINT_CLASS)) if (!used.codepoints.has(normalizeCodepoint(m[1]))) return false;
+    if (used.elements !== null) for (const name of mjxElements(sel)) if (!used.elements.has(name)) return false;
     return true;
   });
   return kept.length === 0 ? null : kept;
@@ -61,7 +78,7 @@ function withSelectors(rule: CssRule, kept: string[]): string {
   return `${kept.join(', ')} ${rule.text.slice(rule.prelude.length).trimStart()}`;
 }
 
-function filterRules(rules: readonly CssRule[], used: ReadonlySet<string>, depth: number): Item[] {
+function filterRules(rules: readonly CssRule[], used: Used, depth: number): Item[] {
   const items: Item[] = [];
   for (const rule of rules) {
     // Ein Rest ohne Ende (Block ohne `}`, Anweisung ohne `;`) entfällt.
@@ -127,16 +144,18 @@ function remoteUrls(css: string): string[] {
 }
 
 /**
- * Filtert die MathJax-Stile (Inhalte der `<style>`-Elemente) auf die benutzten Codepunkte (Hex, wie in `mjx-c<HEX>`; Groß-/Kleinschreibung und führende Nullen sind gleich).
+ * Filtert die MathJax-Stile (Regeln des Stylesheets, je Regel `cssText`) auf die benutzten Codepunkte (Hex, wie in `mjx-c<HEX>`; Groß-/Kleinschreibung und führende Nullen sind gleich).
  * Das Ergebnis hängt nur von den Regeln ab, die bleiben: dieselben Codepunkte ergeben dieselbe Zeichenkette, egal welche weiteren Zeichenregeln die Eingabe trägt;
  * die Reihenfolge der Eingabe-Elemente ändert nichts (gleiche Blätter fallen zusammen, die Blätter werden nach Zeichenfolge geordnet).
+ * `usedElements` (Namen der `mjx-`-Elemente im gezeichneten Inhalt, klein geschrieben) schaltet den Elementfilter ein; ohne ihn bleiben alle Elementregeln.
  * Befunde: `info` `math.font-url` je Schrift-Adresse, deren `@font-face` draußen bleibt, nach Zeichenfolge, dann je übriger Adresse in Regeln (das Einbetten folgt später).
  */
-export function filterMathCss(styles: string[], usedCodepoints: Set<string>): { css: string; findings: Finding[] } {
+export function filterMathCss(styles: string[], usedCodepoints: Set<string>, usedElements?: ReadonlySet<string>): { css: string; findings: Finding[] } {
   const used = new Set<string>();
   for (const cp of usedCodepoints) used.add(normalizeCodepoint(cp.trim().replace(/^(?:U\+|0x)/i, '')));
 
-  const trees = styles.map((s) => filterRules(parseCssRules(s.replace(/\r\n?/g, '\n')).rules, used, 0));
+  const elements = usedElements === undefined ? null : new Set(Array.from(usedElements, (n) => n.trim().toLowerCase()));
+  const trees = styles.map((s) => filterRules(parseCssRules(s.replace(/\r\n?/g, '\n')).rules, { codepoints: used, elements }, 0));
   const families = new Set<string>();
   for (const tree of trees) collectFonts(tree, families);
 

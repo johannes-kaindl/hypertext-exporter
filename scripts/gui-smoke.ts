@@ -542,6 +542,7 @@ async function lauf(gegenprobe: boolean): Promise<void> {
       const c = [...document.querySelectorAll("mjx-container mjx-c")].map((e) => (e.getAttribute("class") ?? "").split(/\\s+/).map((k) => /^mjx-c([0-9A-Fa-f]+)$/.exec(k)?.[1]).filter(Boolean)).flat();
       return [...new Set(c)];
     `;
+    const ELEMENT_TEILE = `return [...new Set([...document.querySelectorAll("*")].map((e) => e.tagName.toLowerCase()).filter((n) => n.startsWith("mjx-")))];`;
     let formeln: { container: StilContainer[]; regeln: string[] } | null = null;
 
     await bilanz.punkt("P9", async () => {
@@ -567,14 +568,15 @@ async function lauf(gegenprobe: boolean): Promise<void> {
       const chrome = await oeffneSeiteInChrome(seiteImVault, CHROME_PORT);
       try {
         const benutzt = new Set(await chrome.cdp.evaluate<string[]>(CSS_TEILE));
+        const elemente = new Set(await chrome.cdp.evaluate<string[]>(ELEMENT_TEILE));
         const mitte = Math.floor(alle.length / 2);
-        const eins = filterMathCss([alle.join("\n")], benutzt);
+        const eins = filterMathCss([alle.join("\n")], benutzt, elemente);
         // Zwei Blaetter, vertauscht uebergeben; ob die Ordnung nach Zeichenfolge sie umstellt, zeigt `umgestellt`.
         const ersteHaelfte = alle.slice(0, mitte).join("\n");
         const zweiteHaelfte = alle.slice(mitte).join("\n");
-        const zwei = filterMathCss([zweiteHaelfte, ersteHaelfte], benutzt);
-        const a1 = filterMathCss([ersteHaelfte], benutzt).css;
-        const a2 = filterMathCss([zweiteHaelfte], benutzt).css;
+        const zwei = filterMathCss([zweiteHaelfte, ersteHaelfte], benutzt, elemente);
+        const a1 = filterMathCss([ersteHaelfte], benutzt, elemente).css;
+        const a2 = filterMathCss([zweiteHaelfte], benutzt, elemente).css;
         const umgestellt = a1 !== "" && a2 !== "" && zwei.css === `${a2}\n${a1}`;
         const ergebnis: string[] = [];
         let abweichungen = 0;
