@@ -2,6 +2,8 @@
 
 Orientierung für KI-Agenten (Claude Code, Codex, …) und Mitwirkende an diesem Repository. Workspace-weite Standards (comply-or-explain): siehe [`../../workspace/_docs/CONVENTIONS.md`](../../workspace/_docs/CONVENTIONS.md) (maintainer-lokal, nicht Teil dieses Repos — ignorieren, falls im Klon nicht vorhanden).
 
+**Stand 2026-11-24 (Etappe 11, Doku):** README (EN, DE), Doku unter `docs/`, vier README-Bilder (`npm run shots`, Vertrag `docs/images/README.md`) und CHANGELOG `[Unreleased]` stehen; `readme_lint` ohne Befund; kein Release, kein Tag. Davor:
+
 **Stand 2026-11-19 (23:15):** Etappe 5 gebaut und bis auf den focus-crew-Bericht abgenommen: Smoke P1 bis P6 grün, Beispielordner 29 von 31 Sätzen am DOM und im Chrome (`file://`) gemessen, Store-Bauart geprüft. Offene Reste als Tasks im Coding-Cockpit; Etappen 6 bis 12 warten auf Johannes' Freigabe. Spec und Bauplan liegen im Coding-Cockpit; der Bauplan ist die SSOT für den Stand je Task.
 
 ## Project character
@@ -29,6 +31,8 @@ npm run check:no-node      # kein Node-Modul in src/ (ohne src/vendor), Gegenpro
 npm run lint               # check-no-inline-disables + eslint src (eslint-plugin-obsidianmd), 0 Warnungen
 npm run build              # esbuild --production → main.js
 npm run gate               # typecheck + typecheck:test + typecheck:scripts + test + check:pure + check:no-node + lint + build — vor jedem Commit
+npm run shots -- --port <9845>  # README-Bilder (Zweitinstanz + headless Chrome 9844), nur über messlauf.sh, Kopf von scripts/shots.ts; --list zeigt den Vertrag
+npm run shots:check        # readme_lint gegen den Bild-Standard
 npm run smoke:gui -- --port <9845..9849>   # Treiber gegen eine laufende Zweitinstanz; gestartet wird über messlauf.sh (siehe Gotchas), --list zeigt den Vertrag, --gegenprobe schaltet das Plugin vor P1 ab
 sh tools/sync-kit.sh       # Kit vendoren (Pins in tools/kit-sync.json); --check vergleicht nur
 ```
