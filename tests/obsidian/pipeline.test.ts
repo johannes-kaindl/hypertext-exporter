@@ -8,6 +8,8 @@ import { checkExport, exportApi, runExport, scopeForEntry } from '../../src/obsi
 import { listing, makeDisk, text } from './fake-adapter';
 import { installObsidianDom } from './dom-polyfill';
 import { BEISPIEL_HYPERTEXT, depsOf, fakeRun, fixtureVault, hostOf, makeVault } from './pipeline-helpers';
+import { EN } from '../../src/i18n/strings';
+import { tableTranslate, textOf } from '../core/text-of';
 
 beforeAll(installObsidianDom);
 
@@ -95,7 +97,7 @@ describe('runExport: Fehler halten den Lauf an', () => {
     expect(result.html).not.toMatch(/onerror/);
     const reparse = result.findings.filter((f) => f.code === CODES.guardReparse);
     expect(reparse).toHaveLength(1);
-    expect(reparse[0]).toMatchObject({ severity: 'warning', notePath: 'a/bericht.md' });
+    expect(reparse[0]).toMatchObject({ severity: 'warning', variant: 'changed', notePath: 'a/bericht.md' });
     expect(result.findings.some((f) => f.code === CODES.finalGuard)).toBe(false);
   });
 
@@ -107,11 +109,12 @@ describe('runExport: Fehler halten den Lauf an', () => {
     const reparse = result.findings.filter((f) => f.code === CODES.guardReparse);
     expect(reparse).toHaveLength(1);
     expect(reparse[0]).toMatchObject({ severity: 'error', notePath: 'a/bericht.md' });
-    expect(reparse[0]?.message).toContain('nicht übernommen');
+    expect(reparse[0]?.variant).toBeUndefined();
+    expect(textOf(reparse[0])).toContain('not taken over');
     // die Ergebnisdatei trägt Code, Pfad und Satz
-    const json = JSON.parse(resultJson(result, null)) as { ok: boolean; findings: Array<{ code: string; notePath?: string; message: string }> };
+    const json = JSON.parse(resultJson(result, null, tableTranslate(EN))) as { ok: boolean; findings: Array<{ code: string; notePath?: string; message: string }> };
     expect(json.ok).toBe(false);
-    expect(json.findings.find((f) => f.code === 'guard.reparse')).toMatchObject({ notePath: 'a/bericht.md', severity: 'error' });
+    expect(json.findings.find((f) => f.code === 'guard.reparse')).toMatchObject({ notePath: 'a/bericht.md' });
   });
 
   it('eine doppelte Marke auf der Seite (mark.duplicate) hält den Lauf ebenso an', async () => {
@@ -219,7 +222,8 @@ describe('Ausgabeform und Größe', () => {
     const size = result.findings.filter((f) => f.code === CODES.outputSize);
     expect(size).toHaveLength(1);
     expect(size[0]?.severity).toBe('info');
-    expect(size[0]?.message).toContain(String(result.stats.bytes));
+    expect(size[0]?.args?.[0]).toBe(result.stats.bytes);
+    expect(textOf(size[0])).toContain(String(result.stats.bytes));
     expect(codes(result.findings)).not.toContain(CODES.outputOverLimit);
   });
 

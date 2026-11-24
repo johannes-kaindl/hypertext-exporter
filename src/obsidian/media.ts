@@ -80,8 +80,8 @@ export async function embedMedia(
     const sole = embed !== null && embed.querySelectorAll('img, video, audio').length === 1;
     (sole && embed !== null ? embed : el).replaceWith(by);
   };
-  const add = (severity: Finding['severity'], code: string, message: string): void => {
-    findings.push({ severity, code, message, notePath: note.path });
+  const add = (severity: Finding['severity'], code: string, args: readonly string[], variant?: string): void => {
+    findings.push({ severity, code, ...(variant !== undefined ? { variant } : {}), args, notePath: note.path });
   };
 
   const alreadyData = new Set<Element>(
@@ -98,7 +98,7 @@ export async function embedMedia(
       wrap.appendText(`${texts.remoteSkipped} `);
       wrap.createEl('a', { text: label, href: src, attr: { rel: 'noopener' } });
       replace(img, embedOf(img), wrap);
-      add('info', CODES.mediaRemoteSkipped, `${texts.remoteSkipped} ${label}`);
+      add('info', CODES.mediaRemoteSkipped, [label]);
     }
   }
 
@@ -111,7 +111,8 @@ export async function embedMedia(
     const embed = embedOf(img);
     const name = fileNameFor(img, embed, texts);
     const reject = (detail: string): void => {
-      add('warning', CODES.mediaSvgRejected, `${texts.notEmbedded} ${name}${detail}`);
+      if (detail === '') add('warning', CODES.mediaSvgRejected, [name]);
+      else add('warning', CODES.mediaSvgRejected, [name, detail], 'problems');
       replace(img, embed, hint('ht-media-missing', texts.notEmbedded, name));
     };
     let text: string;
@@ -123,7 +124,7 @@ export async function embedMedia(
     }
     const verdict = checkSvg(text);
     if (!verdict.ok) {
-      reject(` (${verdict.problems.map((p) => p.code).join(', ')})`);
+      reject(verdict.problems.map((p) => p.code).join(', '));
       continue;
     }
     const bytes = new TextEncoder().encode(new XMLSerializer().serializeToString(verdict.svg));
@@ -143,7 +144,7 @@ export async function embedMedia(
     const embed = embedOf(img);
     const name = fileNameFor(img, embed, texts);
     replace(img, embed, hint('ht-media-missing', texts.notEmbedded, name));
-    add('warning', CODES.mediaNotEmbedded, `${texts.notEmbedded} ${name}`);
+    add('warning', CODES.mediaNotEmbedded, [name]);
   }
 
   // Audio, Video und andere Anhänge: in Etappe 5 nur ein Hinweis (Etappe 6 ersetzt das).
@@ -151,7 +152,7 @@ export async function embedMedia(
     const embed = embedOf(el);
     const name = fileNameFor(el, embed, texts);
     replace(el, embed, hint('ht-media-later', texts.later, name));
-    add('info', CODES.mediaLater, `${texts.later} ${name}`);
+    add('info', CODES.mediaLater, [name]);
   }
   for (const embed of Array.from(root.querySelectorAll(EMBED_SELECTOR))) {
     if (embed.classList.contains('markdown-embed')) continue;
@@ -163,10 +164,10 @@ export async function embedMedia(
     // Obsidian zeichnet eine fehlende Datei als `mod-empty-attachment` oder `mod-empty` (Klassen laut obsidian-kit `render-note`, das daran `embed-missing` meldet), ältere Fassungen als `is-unresolved`.
     if (['is-unresolved', 'mod-empty', 'mod-empty-attachment'].some((c) => embed.classList.contains(c))) {
       embed.replaceWith(hint('ht-media-missing', texts.notEmbedded, name));
-      add('warning', CODES.mediaNotEmbedded, `${texts.notEmbedded} ${name}`);
+      add('warning', CODES.mediaNotEmbedded, [name]);
     } else {
       embed.replaceWith(hint('ht-media-later', texts.later, name));
-      add('info', CODES.mediaLater, `${texts.later} ${name}`);
+      add('info', CODES.mediaLater, [name]);
     }
   }
 

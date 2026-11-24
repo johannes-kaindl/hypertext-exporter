@@ -2,7 +2,7 @@
 // Die Marken-Prüfung über die ganze Seite (`mark.duplicate`, `mark.missing-target`) macht allein die Kit-Funktion `checkAnchors` (Bestellung 6).
 import { checkAnchors } from '../vendor/kit/anchor-check';
 import { dataUrlToBytes } from '../vendor/kit/data-url';
-import { guardExportTree, type ExportGuardFinding } from '../vendor/kit/export-guard';
+import { guardExportTree } from '../vendor/kit/export-guard';
 import { escapeHtmlAttr, escapeHtmlText } from '../vendor/kit/html-escape';
 import { checkSvg } from '../vendor/kit/svg-guard';
 import { CODES } from './finding-codes';
@@ -10,11 +10,11 @@ import type { Finding } from './types';
 
 // Gesucht wird in der Form, die der Browser aus der Schreibweise macht (Review Etappe 10, Befund 5): ohne Groß und Klein, mit aufgelösten Entities und Prozentkodierung,
 // ohne Tab und Zeilenumbruch (die ein Browser aus einer Adresse streicht). `file:` ist ein Sonderschema: `file:/` und `file:\` führen ebenso zu einer Datei.
-const FORBIDDEN: Array<{ needle: string; message: string }> = [
-  { needle: 'app://', message: 'Die Seite enthält eine app://-Adresse.' },
-  { needle: 'capacitor://', message: 'Die Seite enthält eine capacitor://-Adresse.' },
-  { needle: 'file:/', message: 'Die Seite enthält eine file://-Adresse.' },
-  { needle: 'file:\\', message: 'Die Seite enthält eine file://-Adresse.' },
+const FORBIDDEN: Array<{ needle: string; scheme: string }> = [
+  { needle: 'app://', scheme: 'app://' },
+  { needle: 'capacitor://', scheme: 'capacitor://' },
+  { needle: 'file:/', scheme: 'file://' },
+  { needle: 'file:\\', scheme: 'file://' },
 ];
 
 /** Benannte Entities, die ein Zeichen aus dem Ascii-Bereich ergeben (Adressen bestehen daraus); die Zahlenform löst `decodeEntities` ohne Tabelle. */
@@ -55,11 +55,7 @@ function readAsBrowser(html: string): string {
   return text.toLowerCase();
 }
 
-const USER_PATHS: Array<{ needle: string; message: string }> = [
-  { needle: '/Users/', message: 'Die Seite enthält Text, der wie ein Benutzerordner aussieht (/Users/).' },
-  { needle: '/home/', message: 'Die Seite enthält Text, der wie ein Benutzerordner aussieht (/home/).' },
-  { needle: 'C:\\Users', message: 'Die Seite enthält Text, der wie ein Benutzerordner aussieht (C:\\Users).' },
-];
+const USER_PATHS: readonly string[] = ['/Users/', '/home/', 'C:\\Users'];
 
 /**
  * `error` `final.forbidden` für `app://`, `capacitor://`, `file://` (ohne Groß und Klein, auch als Entity oder Prozentkodierung geschrieben) und den Vault-Basispfad
@@ -74,8 +70,8 @@ export function finalCheck(html: string, page: HTMLElement, basePath: string | n
   const raw = html.toLowerCase();
   const decoded = readAsBrowser(html);
   const noBreaks = decoded.replace(/[\t\n\r]/g, '');
-  for (const { needle, message } of FORBIDDEN) {
-    if (raw.includes(needle) || decoded.includes(needle) || noBreaks.includes(needle)) findings.push({ severity: 'error', code: CODES.finalForbidden, message });
+  for (const { needle, scheme } of FORBIDDEN) {
+    if (raw.includes(needle) || decoded.includes(needle) || noBreaks.includes(needle)) findings.push({ severity: 'error', code: CODES.finalForbidden, args: [scheme] });
   }
   if (basePath !== null && basePath !== '') {
     const needles = new Set<string>();
@@ -85,17 +81,17 @@ export function finalCheck(html: string, page: HTMLElement, basePath: string | n
     // Die Seite trägt den Pfad roh, maskiert oder kodiert; beide Normalformen der Seite werden gegen beide des Pfades gelesen.
     const hay = [raw, decoded, noBreaks, raw.normalize('NFC'), raw.normalize('NFD'), decoded.normalize('NFC'), decoded.normalize('NFD')];
     if (Array.from(needles).some((n) => hay.some((h) => h.includes(n)))) {
-      findings.push({ severity: 'error', code: CODES.finalForbidden, message: 'Die Seite enthält den Pfad des Vault-Ordners.' });
+      findings.push({ severity: 'error', code: CODES.finalForbidden, variant: 'vault-path' });
     }
   }
-  for (const { needle, message } of USER_PATHS) {
-    if (html.includes(needle)) findings.push({ severity: 'warning', code: CODES.finalUserPath, message });
+  for (const needle of USER_PATHS) {
+    if (html.includes(needle)) findings.push({ severity: 'warning', code: CODES.finalUserPath, args: [needle] });
   }
   for (const a of checkAnchors(page)) {
     if (a.kind === 'duplicate-id') {
-      findings.push({ severity: 'error', code: CODES.markDuplicate, message: `Die Marke „${a.id}“ steht ${a.count}-mal auf der Seite.` });
+      findings.push({ severity: 'error', code: CODES.markDuplicate, args: [a.id, a.count] });
     } else {
-      findings.push({ severity: 'error', code: CODES.markMissingTarget, message: `Der Sprung ${a.href} („${a.text}“) hat kein Ziel auf der Seite.` });
+      findings.push({ severity: 'error', code: CODES.markMissingTarget, args: [a.href, a.text] });
     }
   }
   return findings;
@@ -111,14 +107,6 @@ function svgImageIsChecked(src: string): boolean {
   }
 }
 
-const GUARD_KIND_LABEL: Record<ExportGuardFinding['kind'], string> = {
-  element: 'Element',
-  attribute: 'Attribut',
-  declaration: 'Stilangabe',
-  svg: 'Zeichnung',
-  comment: 'Kommentar',
-  reparse: 'Baum, der sich beim erneuten Lesen änderte',
-};
 
 /**
  * Zweiter Schutzdurchgang (Review Etappe 10, Befund 2): der Schutzdurchgang je Notiz urteilt über den Baum, den Obsidian zeichnet. Ein Baum, der beim Schreiben und erneuten Lesen
@@ -143,11 +131,12 @@ export function finalGuard(page: ParentNode, ownScript?: string): Finding[] {
   }
   const found = guardExportTree(body);
   if (found.length === 0) return [];
+  // Der Ort ist Quelltext der Seite, kein Satz: `img[src]`, `script`, bei einem Baum, der sich beim Lesen änderte (`reparse`), `#tree`.
   const labels = new Map<string, number>();
   for (const f of found) {
-    const label = `${GUARD_KIND_LABEL[f.kind]} ${f.name !== undefined ? `${f.name} an ${f.element}` : f.element}`;
+    const label = f.name !== undefined ? `${f.element}[${f.name}]` : f.element;
     labels.set(label, (labels.get(label) ?? 0) + 1);
   }
   const list = Array.from(labels, ([label, n]) => (n > 1 ? `${label} ×${n}` : label)).join(', ');
-  return [{ severity: 'error', code: CODES.finalGuard, message: `Der Schutzdurchgang fand in der fertigen Seite noch ${found.length} Stelle(n) mit aktivem Inhalt (${list}); die Seite wird nicht geschrieben.` }];
+  return [{ severity: 'error', code: CODES.finalGuard, args: [found.length, list] }];
 }

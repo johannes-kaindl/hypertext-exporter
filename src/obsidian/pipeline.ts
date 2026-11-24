@@ -27,6 +27,7 @@ import { BASE_CSS } from '../theme/base-css';
 import { DEFAULT_THEME_CSS, DEFAULT_THEME_KEY } from '../theme/default-theme';
 import { errorMessage } from '../vendor/kit/error-message';
 import { formatBytes } from '../vendor/kit/format-bytes';
+import { t } from '../vendor/kit/i18n';
 import { createMacrotaskPause } from '../vendor/kit/macrotask-pause';
 import { baseName, splitFileName } from '../vendor/kit/rel-path';
 import { sha256HexUtf8 } from '../vendor/kit/sha256';
@@ -142,8 +143,8 @@ function makeExtras(set: ExportSet, recipe: Recipe, doc: Document): { extras: Pa
     const out = [...overviewFindings];
     for (const [name, paths] of missingIn) {
       // Ein Feld, das eine Übersicht schon gemeldet hat, wird nicht noch einmal gemeldet.
-      if (overviewFindings.some((f) => f.code === CODES.fieldMissing && f.message.startsWith(`Das Feld „${name}“ `))) continue;
-      out.push({ severity: 'warning', code: CODES.fieldMissing, message: `Das Feld „${name}“ fehlt oder ist leer in ${paths.size} von ${summarized.size} Notizen (Zusatzzeile)` });
+      if (overviewFindings.some((f) => f.code === CODES.fieldMissing && f.args?.[0] === name)) continue;
+      out.push({ severity: 'warning', code: CODES.fieldMissing, variant: 'summary-line', args: [name, paths.size, summarized.size] });
     }
     return out;
   };
@@ -299,9 +300,9 @@ export async function runExport(host: PipelineHost, req: ExportRequest, run: Run
 
   // 12 (Form): `auto` wählt in Etappe 5 immer `file`; das Paket kommt in Etappe 6. Die Größe steht als Hinweis, über der Grenze zusätzlich als Warnung.
   stats.bytes = new TextEncoder().encode(html).length;
-  findings.add({ severity: 'info', code: CODES.outputSize, message: `Größe der Seite: ${stats.bytes} Byte (${formatBytes(stats.bytes)})` });
+  findings.add({ severity: 'info', code: CODES.outputSize, args: [stats.bytes, formatBytes(stats.bytes)] });
   if (stats.bytes > recipe.outputLimitMb * MIB) {
-    findings.add({ severity: 'warning', code: CODES.outputOverLimit, message: `Die Seite ist größer als ${recipe.outputLimitMb} MB (output_limit_mb); ab einer späteren Fassung entsteht dann ein Paket` });
+    findings.add({ severity: 'warning', code: CODES.outputOverLimit, args: [recipe.outputLimitMb] });
   }
   return result(true, html);
 }
@@ -363,8 +364,8 @@ export function exportApi(host: PipelineHost, deps: PipelineDeps = {}): ExportAp
         result = await runExport(host, scopeForEntry(host.app, entryPath), run, deps);
         return await writeExport(host, result, result.entryPath ?? entryPath);
       } catch (e) {
-        const failed: ExportResult = { ok: false, fileName: result.fileName, findings: [...result.findings, { severity: 'error', code: CODES.exportFailed, message: errorMessage(e) }], stats: result.stats };
-        return resultJson(failed, null);
+        const failed: ExportResult = { ok: false, fileName: result.fileName, findings: [...result.findings, { severity: 'error', code: CODES.exportFailed, args: [errorMessage(e)] }], stats: result.stats };
+        return resultJson(failed, null, t);
       } finally {
         pause.close();
       }

@@ -6,9 +6,9 @@ import { quoteScalar } from '../vendor/kit/frontmatter';
 import { compareCodePoints, compareOrderedNames, parseOrderedName } from '../vendor/kit/name-order';
 import { normalizeRelPath } from '../vendor/kit/rel-path';
 import { slugify } from '../vendor/kit/slug';
-import { inputIssues, type FieldSchema, type IssueCode, type NestedObjectSchema, type ObjectSchema, type ValidationIssue } from '../vendor/kit/validate-input';
+import { inputIssues, type FieldSchema, type NestedObjectSchema, type ObjectSchema, type ValidationIssue } from '../vendor/kit/validate-input';
 import { CODES } from './finding-codes';
-import type { Column, Finding, GridRule, NoteInput, OrderRule, Recipe, SectionSpec, SourceSpec } from './types';
+import type { Column, Finding, FindingArg, GridRule, NoteInput, OrderRule, Recipe, SectionSpec, SourceSpec } from './types';
 
 export const DEFAULT_RECIPE: Recipe = {
   version: 1,
@@ -32,7 +32,7 @@ export function notYetFindings(recipe: Recipe): Finding[] {
   const notYet = (key: string): Finding => ({
     severity: 'warning',
     code: CODES.recipeNotYet,
-    message: `${key} wird in dieser Version noch nicht umgesetzt`,
+    args: [key],
     recipePath: key,
   });
   const out: Finding[] = [];
@@ -82,8 +82,8 @@ export function recipeYaml(folder: string, notes: NoteInput[], obsidianLang: str
 // ---------------------------------------------------------------------------------------------------------------------------------------------------
 // Lesen
 
-/** Der Satz, den ein Wert trägt, der in einer späteren Fassung gilt (Spec 10.10: „… mit dem Satz, ab welcher Fassung er gilt“). */
-const LATER = 'gilt ab einer späteren Fassung';
+/** Der Hinweis, den das Kit in seine Meldung setzt, wenn ein Wert in einer späteren Fassung gilt (Spec 10.10); `findingOf` erkennt daran `recipe.value-later`, der Satz dazu steht in `strings.ts`. */
+const LATER = 'is available from a later version';
 
 const text = (aliases: string[], extra: { enum?: string[]; futureValues?: Record<string, string> } = {}): FieldSchema => ({ type: 'string', aliases, ...extra });
 const textList = (aliases: string[]): FieldSchema => ({ type: 'array', aliases, items: { type: 'string' } });
@@ -158,36 +158,23 @@ const SCHEMA: ObjectSchema & { properties: Record<string, FieldSchema> } = {
   },
 };
 
-const DE_ISSUE: Partial<Record<IssueCode, string>> = {
-  'unknown-field': 'unbekannter Schlüssel, wird ignoriert',
-  missing: 'fehlt',
-  type: 'hat den falschen Typ',
-  'too-short': 'ist zu kurz',
-  'not-in-enum': 'der Wert ist nicht erlaubt',
-  'below-minimum': 'liegt unter dem erlaubten Bereich',
-  'above-maximum': 'liegt über dem erlaubten Bereich',
-  'duplicate-key': 'steht doppelt (zwei Schreibweisen desselben Schlüssels)',
-  format: 'hat ein falsches Format',
-};
+/** Die Prüfarten des Kits, für die es einen eigenen Satz gibt (`finding.recipe.invalid.<art>`); jede andere Art zeigt die englische Meldung des Kits (`finding.recipe.invalid`). */
+const ISSUE_VARIANTS: ReadonlySet<string> = new Set(['missing', 'type', 'too-short', 'not-in-enum', 'below-minimum', 'above-maximum', 'duplicate-key', 'format']);
 
 function findingOf(issue: ValidationIssue): Finding {
   const path = issue.path;
-  const prefix = path === '' ? 'Bauanleitung' : path;
+  // Der Block heißt in der Notiz `hypertext`; er ist der Ort, wenn der Fehler die Wurzel selbst trifft.
+  const where = path === '' ? 'hypertext' : path;
   const later = issue.code === 'not-in-enum' && issue.message.includes('is not available yet');
   const oneOf = issue.code === 'one-of' ? /(?:exactly|only) one of ([^ ]+(?:, [^ ]+)*)/.exec(issue.message)?.[1] : undefined;
-  const message = later
-    ? `${prefix}: der Wert ${LATER}`
-    : oneOf !== undefined
-      ? `${prefix}: genau einer dieser Schlüssel muss stehen: ${oneOf}`
-      : issue.code === 'not-object'
-        ? 'Die Bauanleitung (Block hypertext) muss ein Objekt mit Schlüsseln sein'
-        : `${prefix}: ${DE_ISSUE[issue.code] ?? issue.message}`;
-  return {
-    severity: issue.severity === 'warning' ? 'warning' : 'error',
-    code: issue.code === 'unknown-field' ? CODES.recipeUnknownKey : later ? CODES.recipeValueLater : CODES.recipeInvalid,
-    message,
-    ...(path === '' ? {} : { recipePath: path }),
-  };
+  const severity = issue.severity === 'warning' ? 'warning' : 'error';
+  const recipePath = path === '' ? {} : { recipePath: path };
+  if (issue.code === 'unknown-field') return { severity, code: CODES.recipeUnknownKey, args: [where], ...recipePath };
+  if (later) return { severity, code: CODES.recipeValueLater, args: [where], ...recipePath };
+  if (oneOf !== undefined) return { severity, code: CODES.recipeInvalid, variant: 'one-of', args: [where, oneOf], ...recipePath };
+  if (issue.code === 'not-object') return { severity, code: CODES.recipeInvalid, variant: 'not-object', args: [], ...recipePath };
+  if (ISSUE_VARIANTS.has(issue.code)) return { severity, code: CODES.recipeInvalid, variant: issue.code, args: [where], ...recipePath };
+  return { severity, code: CODES.recipeInvalid, args: [where, issue.message], ...recipePath };
 }
 
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -227,7 +214,7 @@ function columnsOf(value: unknown, path: string, problems: Finding[]): Column[] 
     const template = str(pick(item, COLUMN, 'template'));
     if (field !== undefined && template === undefined) out.push({ header: header ?? field, field });
     else if (template !== undefined && field === undefined) {
-      if (header === undefined) problems.push({ severity: 'error', code: CODES.recipeInvalid, message: `${at}: eine Spalte mit Vorlage braucht eine Überschrift (header)`, recipePath: at });
+      if (header === undefined) problems.push({ severity: 'error', code: CODES.recipeInvalid, variant: 'column-header', args: [at], recipePath: at });
       else out.push({ header, template });
     }
   });
@@ -288,22 +275,22 @@ const OFF = new Set(['off', 'none', 'aus']);
 /** Die Regel für das Zustandsraster (Spec 10.12): `states` ist eine Abbildung Zustand → Wörter (ein Text zählt als ein Wort), die beiden anderen Schlüssel sind ein Wert oder aus. */
 function readGrids(value: unknown, problems: Finding[]): GridRule | null {
   if (value === undefined) return null;
-  const bad = (path: string, why: string): void => { problems.push({ severity: 'error', code: CODES.recipeInvalid, message: `${path}: ${why}`, recipePath: path }); };
+  const bad = (path: string, variant: string, args: readonly FindingArg[] = []): void => { problems.push({ severity: 'error', code: CODES.recipeInvalid, variant, args: [path, ...args], recipePath: path }); };
   if (!isObject(value)) {
-    bad('grids', 'muss ein Objekt sein');
+    bad('grids', 'grids-object');
     return null;
   }
   for (const key of Object.keys(value)) {
-    if (!GRID_KEYS.has(normFieldKey(key))) problems.push({ severity: 'warning', code: CODES.recipeUnknownKey, message: `grids.${key}: unbekannter Schlüssel, wird ignoriert`, recipePath: `grids.${key}` });
+    if (!GRID_KEYS.has(normFieldKey(key))) problems.push({ severity: 'warning', code: CODES.recipeUnknownKey, args: [`grids.${key}`], recipePath: `grids.${key}` });
   }
   const rawStates = readField(value, 'states', []);
   const states: Record<string, string[]> = {};
-  if (!isObject(rawStates)) bad('grids.states', rawStates === undefined ? 'fehlt' : 'muss eine Abbildung Zustand → Wörter sein');
+  if (!isObject(rawStates)) bad('grids.states', rawStates === undefined ? 'grids-states-missing' : 'grids-states-shape');
   else {
     for (const state of Object.keys(rawStates)) {
       const words = rawStates[state];
       const list = typeof words === 'string' ? [words] : Array.isArray(words) && words.every((w): w is string => typeof w === 'string') ? words : null;
-      if (list === null) bad(`grids.states.${state}`, 'muss ein Wort oder eine Liste von Wörtern sein');
+      if (list === null) bad(`grids.states.${state}`, 'grids-state-words');
       else states[state] = list;
     }
   }
@@ -311,7 +298,7 @@ function readGrids(value: unknown, problems: Finding[]): GridRule | null {
     const v = readField(value, name, []);
     if (v === undefined || v === false || (typeof v === 'string' && OFF.has(foldCase(v.trim())))) return null;
     if (v === allowed) return allowed;
-    bad(`grids.${name}`, `erlaubt sind ${allowed} oder aus`);
+    bad(`grids.${name}`, 'grids-choice', [allowed]);
     return null;
   };
   return { states, groupColumns: choice('group_columns', 'header-prefix'), rowNote: choice('row_note', 'parentheses') };
@@ -336,11 +323,11 @@ export function parseRecipe(raw: unknown): { recipe: Recipe; findings: Finding[]
 
   const version = pick(raw, SCHEMA, 'version');
   if (typeof version === 'number' && Number.isInteger(version) && version !== 1) {
-    findings.push({ severity: 'error', code: CODES.recipeVersion, message: `version: Fassung ${version} der Bauanleitung wird von dieser Version nicht gelesen (bekannt ist 1)`, recipePath: 'version' });
+    findings.push({ severity: 'error', code: CODES.recipeVersion, args: [version], recipePath: 'version' });
   }
   const limit = pick(raw, SCHEMA, 'output_limit_mb');
   if (typeof limit === 'number' && Number.isFinite(limit) && limit <= 0) {
-    findings.push({ severity: 'error', code: CODES.recipeInvalid, message: 'output_limit_mb: muss größer als 0 sein', recipePath: 'output_limit_mb' });
+    findings.push({ severity: 'error', code: CODES.recipeInvalid, variant: 'output-limit', args: [], recipePath: 'output_limit_mb' });
   }
 
   const fields = pick(raw, SCHEMA, 'fields');

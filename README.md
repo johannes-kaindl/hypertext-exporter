@@ -19,7 +19,7 @@ Export a folder of Markdown notes as one self-contained HTML page: foldable, sea
 - **Search that opens what it finds.** Type into the search field: blocks without the words disappear, blocks with them open and the words are highlighted. `Escape` puts everything back.
 - **Overviews from front matter.** A table with one row per note, built from the fields you name; a summary line under each title.
 - **Order and groups you decide.** By name, by number prefix, by first mention in the entry note, by a field, or grouped by one or two fields.
-- **Findings, not silence.** Every link that could not be kept, every file that could not be embedded and every block that stayed empty is listed, with a code.
+- **Findings, not silence.** Every link that could not be kept, every file that could not be embedded and every block that stayed empty is listed, with a code and a message in the language of the interface.
 - **Check and command line.** *Check HTML export* rebuilds the page and compares it byte for byte; a script can start an export and read the answer.
 - **Safe by construction.** Text from a note does not become a program in the page; three layers say why (see [How it works](#how-it-works)).
 

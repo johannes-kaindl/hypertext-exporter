@@ -2,9 +2,9 @@
 
 Every export ends with a list of findings, in the **Findings** tab of the panel and in the result file next to the page. Nothing is dropped silently: whatever the page lacks, a finding says so.
 
-There are three severities. An **error** stops the run before the file is written. A **warning** means the page is written but something in it is not as the note says. A **notice** reports a decision or a size and needs no action. The codes are fixed; the message text of a finding is written in German in this version, whatever the interface language is. Match on the code, not on the text.
+There are three severities. An **error** stops the run before the file is written. A **warning** means the page is written but something in it is not as the note says. A **notice** reports a decision or a size and needs no action. The codes are fixed; the message text of a finding follows the language of the Obsidian interface (English or German), in the panel and in the result file. Match on the code, not on the text.
 
-The result file is `<note name>.export.json`. It holds `ok`, `path` (the page, or `null`), the counts `errors`, `warnings` and `infos`, and the list of findings with `severity`, `code`, `message` and where known `notePath` and `recipePath`. It is written for every run except the target "Share". See [Export from the command line](../how-to/export-from-the-command-line.md).
+The result file is `<note name>.export.json`. It holds `ok`, `path` (the page, or `null`), the counts `errors`, `warnings` and `infos`, and the list of findings with `severity`, `code`, `message` (in the language of the interface at the time of the run) and where known `notePath` and `recipePath`. It is written for every run except the target "Share". See [Export from the command line](../how-to/export-from-the-command-line.md).
 
 ## Recipe
 

@@ -2,8 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { compareFindings, countFindings, FindingList, hasError, sortFindings } from '../../src/core/findings';
 import type { Finding } from '../../src/core/types';
 
-const f = (severity: Finding['severity'], code: string, notePath?: string, message = code): Finding =>
-  notePath === undefined ? { severity, code, message } : { severity, code, message, notePath };
+// `tag` unterscheidet Befunde mit gleichem Schlüssel; er steht als Wert in `args`.
+const f = (severity: Finding['severity'], code: string, notePath?: string, tag = code): Finding =>
+  notePath === undefined ? { severity, code, args: [tag] } : { severity, code, args: [tag], notePath };
 
 const SAMPLE: Finding[] = [
   f('info', 'output.size'),
@@ -75,8 +76,8 @@ describe('sortFindings', () => {
   it('hält gleiche Befunde in Eingabereihenfolge (stabil)', () => {
     const a = f('warning', 'embed.missing', 'a.md', 'erster');
     const b = f('warning', 'embed.missing', 'a.md', 'zweiter');
-    expect(sortFindings([a, b]).map((x) => x.message)).toEqual(['erster', 'zweiter']);
-    expect(sortFindings([b, a]).map((x) => x.message)).toEqual(['zweiter', 'erster']);
+    expect(sortFindings([a, b]).map((x) => x.args?.[0])).toEqual(['erster', 'zweiter']);
+    expect(sortFindings([b, a]).map((x) => x.args?.[0])).toEqual(['zweiter', 'erster']);
   });
 
   it('ändert die Eingabe nicht', () => {

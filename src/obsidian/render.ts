@@ -33,36 +33,32 @@ export interface RenderResult {
 /** Pflichtprüfung vor dem ersten Zeichnen (Spec 4b): ein verdecktes oder minimiertes Fenster drosselt den Renderer so stark, dass der Export nicht fertig wird. */
 export function assertWindowVisible(doc: Pick<Document, 'visibilityState'> = activeWindow.document): Finding | null {
   if (doc.visibilityState !== 'hidden') return null;
-  return {
-    severity: 'error',
-    code: CODES.renderHiddenWindow,
-    message: 'Das Obsidian-Fenster ist verdeckt. Obsidian-Fenster nicht minimieren, solange der Export läuft.',
-  };
+  return { severity: 'error', code: CODES.renderHiddenWindow, args: [] };
 }
 
 /** Kit-Befund des Zeichners als `Finding` mit Pfad der Notiz. */
 export function translateRenderFinding(f: RenderNoteFinding, notePath: string): Finding {
   switch (f.kind) {
     case 'render-timeout':
-      return { severity: 'warning', code: CODES.renderTimeout, message: `Zeichnen nach ${f.ms} ms nicht fertig; die Notiz kann unvollständig sein`, notePath };
+      return { severity: 'warning', code: CODES.renderTimeout, args: [f.ms], notePath };
     case 'render-failed':
-      return { severity: 'warning', code: CODES.renderFailed, message: `Der Zeichner meldete einen Fehler: ${f.message}`, notePath };
+      return { severity: 'warning', code: CODES.renderFailed, args: [f.message], notePath };
     case 'mermaid-missing':
-      return { severity: 'warning', code: CODES.renderMermaidMissing, message: `${f.expected - f.drawn} von ${f.expected} Diagrammen wurden nicht gezeichnet`, notePath };
+      return { severity: 'warning', code: CODES.renderMermaidMissing, args: [f.expected - f.drawn, f.expected], notePath };
     case 'not-settled':
       return {
         severity: 'warning',
         code: CODES.renderPlaceholder,
-        message: `Nach ${f.ms} ms stand noch kein Endergebnis da (${f.placeholders} Platzhalter, etwa „Loading“); der Block kann leer oder unfertig sein`,
+        args: [f.ms, f.placeholders],
         notePath,
       };
     case 'window-hidden':
-      return { severity: 'error', code: CODES.renderHiddenWindow, message: assertWindowVisible({ visibilityState: 'hidden' })?.message ?? '', notePath };
+      return { severity: 'error', code: CODES.renderHiddenWindow, args: [], notePath };
     case 'metadata-not-ready':
       // Das Zeichnen lief trotzdem: eine Abschnitts-Einbettung kann die ganze Notiz zeigen, die Seite ist vollständig, aber vielleicht nicht, was die Notiz meint.
-      return { severity: 'warning', code: CODES.renderMetadataNotReady, message: `Obsidian hatte die eingebettete Notiz ${f.target} nach ${f.ms} ms noch nicht indiziert; ein eingebetteter Abschnitt von ihr zeigt vielleicht die ganze Notiz`, notePath };
+      return { severity: 'warning', code: CODES.renderMetadataNotReady, args: [f.target, f.ms], notePath };
     case 'embed-missing':
-      return { severity: 'warning', code: CODES.embedMissing, message: `Einbettung ohne Ziel: ${f.target}`, notePath };
+      return { severity: 'warning', code: CODES.embedMissing, args: [f.target], notePath };
   }
 }
 
@@ -70,35 +66,31 @@ export function translateRenderFinding(f: RenderNoteFinding, notePath: string): 
 export function translateFreezeFinding(f: ExportFreezeFinding, notePath: string): Finding {
   switch (f.kind) {
     case 'canvas-failed':
-      return { severity: 'warning', code: CODES.freezeCanvasFailed, message: `Ein Canvas ließ sich nicht in ein Bild wandeln und fehlt in der Seite (${f.reason})`, notePath };
+      return { severity: 'warning', code: CODES.freezeCanvasFailed, args: [f.reason], notePath };
     case 'canvas-blank':
-      return { severity: 'warning', code: CODES.freezeCanvasBlank, message: `Ein Canvas (${f.width} × ${f.height}) ist leer gezeichnet worden; das Bild bleibt als leere Fläche`, notePath };
+      return { severity: 'warning', code: CODES.freezeCanvasBlank, args: [f.width, f.height], notePath };
     case 'empty-block': {
       const where = f.hint === '' ? f.what : `${f.what}: ${f.hint}`;
-      return { severity: 'warning', code: CODES.freezeEmptyBlock, message: `Ein Block blieb leer (${where})`, notePath };
+      return { severity: 'warning', code: CODES.freezeEmptyBlock, args: [where], notePath };
     }
   }
 }
 
-const GUARD_KIND_TEXT: Record<ExportGuardFinding['kind'], string> = {
-  element: 'aktive Elemente',
-  attribute: 'Attribute mit Ereignis oder Skriptziel',
-  declaration: 'Stilangaben mit Ladeziel',
-  svg: 'Zeichnungen (SVG), die der Prüfer ablehnte',
-  comment: 'Kommentare, die sich selbst beenden könnten',
-  reparse: 'Bäume, die sich beim erneuten Lesen änderten',
-};
+const GUARD_KINDS: readonly ExportGuardFinding['kind'][] = ['element', 'attribute', 'declaration', 'svg', 'comment'];
 
-/** Kit-Befunde des Schutzdurchgangs, je Art zu einem `guard.removed` mit Zahl zusammengefasst (sonst wüchse die Befundliste mit jedem `onclick`). */
+/**
+ * Kit-Befunde des Schutzdurchgangs, je Art zu einem `guard.removed` mit Zahl zusammengefasst (sonst wüchse die Befundliste mit jedem `onclick`).
+ * Die Art `reparse` (Kit 0.89.0: der Baum ergab beim erneuten Lesen einen anderen) wird nicht gezählt, sondern einzeln gemeldet: `guard.reparse` als `error`, wenn die Wurzel nach den Runden
+ * geleert wurde (`rootEmptied`: die Notiz ist nicht übernommen), sonst als `warning` (die Notiz steht in der Form, die ein Browser aus ihrem Text liest, der Inhalt kann abweichen).
+ */
 export function translateGuardFindings(found: readonly ExportGuardFinding[], notePath: string, rootEmptied = false): Finding[] {
-  const order: ExportGuardFinding['kind'][] = ['element', 'attribute', 'declaration', 'svg', 'comment'];
   const out: Finding[] = [];
-  for (const kind of order) {
+  for (const kind of GUARD_KINDS) {
     const hits = found.filter((f) => f.kind === kind);
     if (hits.length === 0) continue;
     const names = new Map<string, number>();
     for (const h of hits) {
-      const label = h.name !== undefined ? `${h.name} an ${h.element}` : h.element;
+      const label = h.name !== undefined ? `${h.element}[${h.name}]` : h.element;
       names.set(label, (names.get(label) ?? 0) + 1);
     }
     const list = Array.from(names, ([label, n]) => (n > 1 ? `${label} ×${n}` : label)).join(', ');
@@ -106,16 +98,15 @@ export function translateGuardFindings(found: readonly ExportGuardFinding[], not
       // Eine abgelehnte Zeichnung fehlt in der Seite und verdient mehr als einen Hinweis.
       severity: kind === 'svg' ? 'warning' : 'info',
       code: CODES.guardRemoved,
-      message: `${hits.length} ${GUARD_KIND_TEXT[kind]} entfernt (${list})`,
+      variant: kind,
+      args: [hits.length, list],
       notePath,
     });
   }
-  // `reparse` (Kit 0.89.0: der Baum ergab beim erneuten Lesen einen anderen) wird nicht gezählt, sondern einzeln gemeldet: `error`, wenn der Durchgang die Wurzel nach seinen Runden ganz geleert hat
-  // (die Notiz ist nicht übernommen), sonst `warning` (die Notiz steht in der Form, die ein Browser aus ihrem Text liest).
   if (found.some((f) => f.kind === 'reparse')) {
     out.push(rootEmptied
-      ? { severity: 'error', code: CODES.guardReparse, message: `Die Notiz wurde nicht übernommen: ihr Inhalt wurde nach ${MAX_REPARSE_ROUNDS} Runden erneuten Lesens nicht stabil, deshalb wurde alles entfernt`, notePath }
-      : { severity: 'warning', code: CODES.guardReparse, message: 'Der Inhalt der Notiz änderte sich beim erneuten Lesen seines Textes. Er steht in der Form, die ein Browser daraus liest, und kann von der Notiz abweichen', notePath });
+      ? { severity: 'error', code: CODES.guardReparse, args: [MAX_REPARSE_ROUNDS], notePath }
+      : { severity: 'warning', code: CODES.guardReparse, variant: 'changed', args: [], notePath });
   }
   return out;
 }
@@ -164,7 +155,7 @@ function prepareMarkdown(note: SetNote, recipe: Recipe): { markdown: string; fra
         findings.push({
           severity: 'warning',
           code: CODES.renderPlaceholderLost,
-          message: `Ein Codeblock${code.lang === '' ? '' : ` (${code.lang})`} ging beim Zeichnen verloren und fehlt in der Seite`,
+          ...(code.lang === '' ? { args: [] } : { variant: 'lang', args: [code.lang] }),
           notePath: note.path,
         });
         continue;
@@ -188,7 +179,8 @@ export function frameReplacedFinding(frames: ReadonlyMap<string, number>, notePa
   return {
     severity: 'info',
     code: CODES.prepareFrameReplaced,
-    message: total === 1 ? `Ein roher Rahmen (${list}) wurde durch einen Text ersetzt, er fehlt in der Seite` : `${total} rohe Rahmen (${list}) wurden durch Texte ersetzt, sie fehlen in der Seite`,
+    ...(total === 1 ? { variant: 'one' } : {}),
+    args: total === 1 ? [list] : [total, list],
     notePath,
   };
 }
@@ -232,13 +224,13 @@ function checkEmbeds(app: App, root: HTMLElement, note: SetNote, inSet: ((path: 
     resolved.set(el, target.path);
     if (target.extension !== 'md') continue;
     if (inSet !== undefined && !inSet(target.path)) {
-      findings.push({ severity: 'warning', code: CODES.embedOutside, message: `Eingebettete Notiz liegt außerhalb der Menge: ${target.path}`, notePath: note.path });
+      findings.push({ severity: 'warning', code: CODES.embedOutside, args: [target.path], notePath: note.path });
     }
     if (subpath !== '' && sectionMissing(app, target, subpath)) {
       findings.push({
         severity: 'warning',
         code: CODES.embedMissingSection,
-        message: `Abschnitt oder Block fehlt in ${target.path}: ${subpath}; Obsidian bettet die ganze Notiz ein`,
+        args: [target.path, subpath],
         notePath: note.path,
       });
     }

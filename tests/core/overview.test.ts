@@ -2,6 +2,7 @@
 import { describe, expect, it } from 'vitest';
 import { buildOverview, summaryLine } from '../../src/core/overview';
 import type { Column, SetNote } from '../../src/core/types';
+import { textOf } from './text-of';
 
 function note(path: string, title: string, frontmatter: Record<string, unknown> = {}): SetNote {
   return { path, title, frontmatter, body: '', depth: 1 };
@@ -89,10 +90,11 @@ describe('buildOverview', () => {
       ['field.missing', 'warning'],
       ['field.missing', 'warning'],
     ]);
-    expect(findings[0]!.message).toContain('frage');
-    expect(findings[0]!.message).toContain('2 von 3');
-    expect(findings[1]!.message).toContain('fehlt');
-    expect(findings[1]!.message).toContain('3 von 3');
+    expect(findings[0]!.args).toEqual(['frage', 2, 3]);
+    expect(textOf(findings[0])).toContain('2 of 3');
+    expect(findings[1]!.args?.slice(1)).toEqual([3, 3]);
+    expect(textOf(findings[1])).toContain('missing');
+    expect(textOf(findings[1])).toContain('3 of 3');
   });
 
   it('Feldwert <b>x</b> erscheint maskiert, auch im Attribut', () => {

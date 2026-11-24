@@ -21,7 +21,7 @@ Exportiert einen Ordner mit Markdown-Notizen als eine eigenständige HTML-Seite:
 - **Suche, die aufklappt, was sie findet.** Tippe ins Suchfeld: Blöcke ohne die Wörter verschwinden, Blöcke mit ihnen öffnen sich und die Wörter sind hervorgehoben. `Escape` stellt alles wieder her.
 - **Übersichten aus dem Frontmatter.** Eine Tabelle mit einer Zeile je Notiz aus den Feldern, die du nennst; eine Zusatzzeile unter jedem Titel.
 - **Reihenfolge und Gruppen bestimmst du.** Nach Name, nach Zahlenpräfix, nach erster Erwähnung in der Einstiegsnotiz, nach einem Feld oder gruppiert nach ein oder zwei Feldern.
-- **Befunde statt Schweigen.** Jeder Link, der nicht bleiben konnte, jede Datei, die sich nicht einbetten ließ, und jeder Block, der leer blieb, steht in einer Liste, mit Code.
+- **Befunde statt Schweigen.** Jeder Link, der nicht bleiben konnte, jede Datei, die sich nicht einbetten ließ, und jeder Block, der leer blieb, steht in einer Liste, mit Code und einer Meldung in der Sprache der Oberfläche.
 - **Prüfbefehl und Kommandozeile.** *Check HTML export* baut die Seite neu und vergleicht sie Byte für Byte; ein Skript kann einen Export starten und die Antwort lesen.
 - **Sicher gebaut.** Text aus einer Notiz wird in der Seite nicht zu Programm; drei Schichten sagen warum (siehe [Funktionsweise](#funktionsweise)).
 

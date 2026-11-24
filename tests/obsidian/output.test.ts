@@ -17,11 +17,11 @@ const ok = (extra: Partial<ExportResult> = {}): ExportResult => ({
   ok: true,
   html: HTML,
   fileName: 'bericht.html',
-  findings: [{ severity: 'info', code: 'output.size', message: '1 KB' }],
+  findings: [{ severity: 'info', code: 'output.size', args: [1024, '1 KB'] }],
   stats: { notes: 2, bytes: HTML.length, mediaBytes: {} },
   ...extra,
 });
-const broken = (findings: Finding[] = [{ severity: 'error', code: 'recipe.invalid', message: 'kaputt' }]): ExportResult => ({
+const broken = (findings: Finding[] = [{ severity: 'error', code: 'recipe.invalid', args: ['hypertext', 'kaputt'] }]): ExportResult => ({
   ok: false,
   fileName: 'bericht.html',
   findings,
@@ -88,8 +88,8 @@ describe('writeExport: beside-entry', () => {
   });
 
   it('die Ergebnisdatei ist bei zwei Läufen mit umgeordneten Befunden gleich', async () => {
-    const a: Finding = { severity: 'warning', code: 'link.outside', message: 'a', notePath: 'a.md' };
-    const b: Finding = { severity: 'warning', code: 'embed.missing', message: 'b', notePath: 'b.md' };
+    const a: Finding = { severity: 'warning', code: 'link.outside', args: ['a'], notePath: 'a.md' };
+    const b: Finding = { severity: 'warning', code: 'embed.missing', args: ['b'], notePath: 'b.md' };
     const disk = makeDisk();
     await writeExport(host(disk), ok({ findings: [a, b] }), 'bericht.md');
     const first = text(disk, 'bericht.export.json');
@@ -127,7 +127,7 @@ describe('writeExport: ok:false', () => {
 
   it('ein Lauf mit ok-Flag, aber einem Fehlerbefund (etwa nach dem Zeichnen) schreibt ebenfalls keine Seite', async () => {
     const disk = makeDisk();
-    const json = await writeExport(host(disk), ok({ findings: [{ severity: 'error', code: 'final.forbidden', message: 'app://' }] }), 'bericht.md');
+    const json = await writeExport(host(disk), ok({ findings: [{ severity: 'error', code: 'final.forbidden', args: ['app://'] }] }), 'bericht.md');
     expect(listing(disk)).toEqual(['bericht.export.json']);
     expect(JSON.parse(json)).toMatchObject({ ok: false, path: null });
   });

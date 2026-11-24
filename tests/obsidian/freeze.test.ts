@@ -7,6 +7,7 @@ import type { RunControl, SetNote } from '../../src/core/types';
 import { renderNote, translateFreezeFinding, type RenderDeps } from '../../src/obsidian/render';
 import type { RenderedNote, RenderNoteOptions } from '../../src/vendor/kit-obsidian/render-note';
 import { installObsidianDom } from './dom-polyfill';
+import { textOf } from '../core/text-of';
 
 beforeAll(installObsidianDom);
 
@@ -27,17 +28,17 @@ describe('translateFreezeFinding', () => {
   it('canvas-failed: Präfix freeze., Warnung, notePath', () => {
     const f = translateFreezeFinding({ kind: 'canvas-failed', reason: 'SecurityError' }, note.path);
     expect(f).toMatchObject({ severity: 'warning', code: 'freeze.canvas-failed', notePath: note.path });
-    expect(f.message).toContain('SecurityError');
+    expect(textOf(f)).toContain('SecurityError');
   });
   it('canvas-blank: Präfix freeze., Maße im Text', () => {
     const f = translateFreezeFinding({ kind: 'canvas-blank', width: 300, height: 150 }, note.path);
     expect(f).toMatchObject({ severity: 'warning', code: 'freeze.canvas-blank', notePath: note.path });
-    expect(f.message).toContain('300');
+    expect(textOf(f)).toContain('300');
   });
   it('empty-block: freeze.empty-block, Art und Klassen im Text', () => {
     const f = translateFreezeFinding({ kind: 'empty-block', what: 'plugin-block', hint: 'block-language-dataview' }, note.path);
     expect(f).toMatchObject({ severity: 'warning', code: CODES.freezeEmptyBlock, notePath: note.path });
-    expect(f.message).toContain('block-language-dataview');
+    expect(textOf(f)).toContain('block-language-dataview');
   });
   it('alle Codes tragen das Präfix freeze.', () => {
     const kinds = [
@@ -69,7 +70,7 @@ describe('renderNote: Einfrieren', () => {
     const out = await renderNote(app, note, DEFAULT_RECIPE, run, drawInto(host));
     // Die leere Einbettung mit Ziel bleibt ein Befund, die ohne Ziel gehört dem Zeichner.
     expect(out.findings.map((f) => f.code)).toEqual([CODES.freezeEmptyBlock]);
-    expect(out.findings[0]?.message).toContain('markdown-embed');
+    expect(textOf(out.findings[0])).toContain('markdown-embed');
   });
 
   it('friert am angehängten Baum ein: der Canvas hängt noch am Dokument, wenn er gelesen wird; ein Fehlschlag steht als freeze.canvas-failed da', async () => {

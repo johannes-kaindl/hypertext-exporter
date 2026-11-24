@@ -42,7 +42,7 @@ sh tools/sync-kit.sh       # Kit vendoren (Pins in tools/kit-sync.json); --check
 - Markdown-Dateien: ein Absatz je Zeile (Johannes' Regel seit 2026-09-19). Kein absoluter Benutzerpfad in getrackten `*.md` (Gate `scripts/check-no-abs-paths.mjs`); Vault- und Staging-Orte nur über Variablen (`$CODING_COCKPIT_VAULT`).
 - Conventional Commits auf Deutsch, SemVer-Tags ohne `v`, nur berührte Dateien per Pfad stagen. `origin` ist Forgejo; `github` gibt es noch nicht und bekommt Branch und Tag später nur über `release.mjs`. Kein Release, kein Tag vor der Abnahme.
 - **Store-Gate:** kein Inline-`eslint-disable` in `src/` (erzwungen von `scripts/check-no-inline-disables.mjs`); Ausnahmen nur file-scoped in `eslint.overrides.mjs` mit Begründung.
-- i18n zweisprachig (EN/DE) in `src/i18n/strings.ts` über die Kit-Engine `i18n`.
+- i18n zweisprachig (EN/DE) in `src/i18n/strings.ts` über die Kit-Engine `i18n`. Befunde tragen Code, `variant` und `args` (`Finding`), nie einen Satz; der Satz steht unter `finding.<code>[.<variant>]` in `strings.ts` und entsteht über `findingMessage(f, t)` in der Sprache der Oberfläche (Panel, Ergebnisdatei). Neuer Code oder neue Variante: Eintrag in `finding-codes.ts` (`VARIANTS`) und EN/DE-Text, `tests/core/finding-text.test.ts` prüft es.
 - Release-Tooling liegt zentral unter `../tools/release/`, nicht im Repo; ein Clone ohne Dach ist nicht release-fähig. Regeln: `../.claude/rules/release-und-store.md`.
 - GUI-Läufe nur in einer Zweitinstanz mit Lock (`../.claude/rules/obsidian-instanz.md`, `../.claude/rules/cdp-lock.md`).
 

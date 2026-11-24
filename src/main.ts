@@ -4,7 +4,7 @@ import { pickLang, setLang, t } from "./vendor/kit/i18n";
 import type { ExportActions } from "./obsidian/actions";
 import { createExportActions } from "./obsidian/export-actions";
 import { exportApi, type ExportApi } from "./obsidian/pipeline";
-import type { Finding } from "./core/types";
+import type { ResultFinding } from "./core/result-file";
 import { registerExportCommands } from "./obsidian/commands";
 import { HtHubView, VIEW_TYPE_HT_HUB, type HubHost } from "./obsidian/hub-view";
 import { insertRecipeCheck } from "./obsidian/insert-recipe";
@@ -55,7 +55,7 @@ export default class HypertextExporterPlugin extends Plugin {
   }
 
   /** Zeigt die Befunde eines Laufs im Panel „Befunde“ (öffnet die Ansicht, auch bei einer leeren Liste, damit der Leerzustand den alten Lauf ersetzt). */
-  async showFindings(findings: Finding[]): Promise<void> {
+  async showFindings(findings: ResultFinding[]): Promise<void> {
     const view = await this.openView();
     view?.showFindings(findings);
   }

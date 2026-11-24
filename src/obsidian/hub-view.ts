@@ -2,7 +2,7 @@
 // Vorbild für die Ansicht: epub-exporter/src/obsidian/hub-view.ts (ItemView, schmale Brücke zum Plugin);
 // für die Panels: slide-deck/src/hub-view.ts (`buildHubInto`, mount-once). Die Ansicht kennt das Plugin nicht, nur `HubHost`.
 import { ItemView, type App, type WorkspaceLeaf } from "obsidian";
-import type { Finding } from "../core/types";
+import type { ResultFinding } from "../core/result-file";
 import { t } from "../vendor/kit/i18n";
 import { pathsInFolder } from "../vendor/kit/folder-scope";
 import { FolderSuggest } from "../vendor/kit-obsidian/folder-suggest";
@@ -178,7 +178,7 @@ export class ExportPanel implements HubPanel<HubTabId> {
   }
 }
 
-const PHASE_OF: Record<Finding["severity"], StatusPhase> = { error: "error", warning: "warning", info: "idle" };
+const PHASE_OF: Record<ResultFinding["severity"], StatusPhase> = { error: "error", warning: "warning", info: "idle" };
 
 export class FindingsPanel implements HubPanel<HubTabId> {
   readonly id: HubTabId = "findings";
@@ -186,7 +186,7 @@ export class FindingsPanel implements HubPanel<HubTabId> {
   readonly icon = "list-checks";
 
   private root: HTMLElement | null = null;
-  private findings: Finding[] = [];
+  private findings: ResultFinding[] = [];
 
   constructor(private app: App) {}
 
@@ -201,7 +201,7 @@ export class FindingsPanel implements HubPanel<HubTabId> {
     this.root = null;
   }
 
-  setFindings(findings: Finding[]): void {
+  setFindings(findings: ResultFinding[]): void {
     this.findings = findings;
     this.render();
   }
@@ -216,13 +216,13 @@ export class FindingsPanel implements HubPanel<HubTabId> {
       empty.createEl("p", { cls: "ht-info", text: t("findings.empty.help") });
       return;
     }
-    const count = (sev: Finding["severity"]): number => this.findings.filter((f) => f.severity === sev).length;
+    const count = (sev: ResultFinding["severity"]): number => this.findings.filter((f) => f.severity === sev).length;
     root.createDiv({ cls: "ht-findings-summary", text: t("findings.summary", count("error"), count("warning"), count("info")) });
     const list = root.createEl("ul", { cls: "ht-findings" });
     for (const f of this.findings) this.renderItem(list, f);
   }
 
-  private renderItem(list: HTMLElement, f: Finding): void {
+  private renderItem(list: HTMLElement, f: ResultFinding): void {
     const item = list.createEl("li", { cls: `ht-finding is-${f.severity}`, attr: { "data-code": f.code } });
     const status = buildStatus(item, "ht-finding-status", { idleIcon: "info" });
     paintStatus(status, PHASE_OF[f.severity], t(`findings.severity.${f.severity}`));
@@ -278,7 +278,7 @@ export class HtHubView extends ItemView {
   }
 
   /** Zeigt die Befunde eines Laufs und wechselt auf das Panel „Befunde“. */
-  showFindings(findings: Finding[]): void {
+  showFindings(findings: ResultFinding[]): void {
     this.findingsPanel.setFindings(findings);
     this.hub?.setTab("findings");
   }

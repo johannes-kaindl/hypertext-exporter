@@ -1,7 +1,12 @@
 // Alle plugin-eigenen Typen (Bauplan Task 4; Typen von Task 5 nur als Schnittstelle, ohne Funktionen).
 
 export type Severity = 'error' | 'warning' | 'info';
-export interface Finding { severity: Severity; code: string; message: string; notePath?: string; recipePath?: string }
+/**
+ * Ein Befund. `code` (mit `variant`, wo ein Code mehrere Sätze trägt) ist der Vertrag; `args` sind die Werte für die Lücken des Satzes. Der Satz selbst entsteht erst an der Oberfläche
+ * (`findingMessage`, Schlüssel `finding.<code>[.<variant>]` in `src/i18n/strings.ts`), in der Sprache der Obsidian-Oberfläche. Werte in `args` sind nie übersetzter Text.
+ */
+export type FindingArg = string | number;
+export interface Finding { severity: Severity; code: string; variant?: string; args?: readonly FindingArg[]; notePath?: string; recipePath?: string }
 export type BlocksMode = 'none' | 'core' | 'all';
 export type OutputMode = 'auto' | 'file' | 'package';
 export interface Column { header: string; field?: string; template?: string }   // genau eins von field, template

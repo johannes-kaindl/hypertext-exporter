@@ -15,7 +15,7 @@ All notable changes to this project are documented here. The format follows
 - Overview tables and summary lines built from front matter fields; ordering by name, number prefix, first mention, or a field; grouping by one or two fields.
 - Images, including SVG, are embedded in the page; images with a web address are not loaded. Audio, video and other attachments show their file name.
 - Search and fold helpers in the page: blocks without the words are hidden, blocks with them open and the words are highlighted, **Expand all** and **Collapse all**, the print view opens everything.
-- Findings list with fixed codes after every export, and a result file `<note name>.export.json` beside the page.
+- Findings list with fixed codes after every export, and a result file `<note name>.export.json` beside the page. The message of a finding follows the language of the Obsidian interface (English or German); the code is the contract.
 - **Check HTML export** rebuilds the page and compares it byte for byte; **Open HTML export** opens it.
 - Command line: `obsidian eval` with `app.plugins.plugins['hypertext-exporter'].api.exportAndWait('<path>')` runs an export and returns the result file.
 - Settings: where to save the page (beside the entry note, a folder in the vault, or the share sheet) and the export folder.

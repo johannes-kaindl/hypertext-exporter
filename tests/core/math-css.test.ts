@@ -51,8 +51,8 @@ describe('filterMathCss', () => {
   it('meldet nur Schriften der Familien, die eine behaltene Regel nennt', () => {
     const { css, findings } = filterMathCss([chtml(CHAR.a, CHAR.bold)], cps('1D44E'));
     expect(css).not.toContain('mjx-tex-b.woff2');
-    expect(findings.map((f) => f.message).join(' ')).not.toContain('mjx-tex-b.woff2');
-    expect(findings.map((f) => f.message).join(' ')).toContain('mjx-tex-i.woff2');
+    expect(findings.map((f) => f.args?.[0]).join(' ')).not.toContain('mjx-tex-b.woff2');
+    expect(findings.map((f) => f.args?.[0]).join(' ')).toContain('mjx-tex-i.woff2');
   });
 
   it('nimmt ein @font-face mit einer Adresse, die nicht data: ist, aus der Seite (sie lädt nichts nach, Erwartung 30) und meldet jede Adresse einmal als info math.font-url, nach Zeichenfolge', () => {
@@ -62,7 +62,7 @@ describe('filterMathCss', () => {
     expect(css).toContain('mjx-c1D44E');
     expect(findings.map((f) => f.code)).toEqual([CODES.mathFontUrl, CODES.mathFontUrl, CODES.mathFontUrl]);
     expect(findings.every((f) => f.severity === 'info')).toBe(true);
-    expect(findings.map((f) => f.message)).toEqual([
+    expect(findings.map((f) => f.args?.[0])).toEqual([
       expect.stringContaining('/lib/mathjax/tex-font/chtml/woff2/mjx-tex-i.woff2'),
       expect.stringContaining('/lib/mathjax/tex-font/chtml/woff2/mjx-tex-n.woff2'),
       expect.stringContaining('/lib/mathjax/tex-font/chtml/woff2/mjx-tex-zero.woff2'),
@@ -119,7 +119,7 @@ describe('filterMathCss', () => {
     const { css, findings } = filterMathCss([chtml(CHAR.a, CHAR.two)], cps());
     expect(css).not.toContain('mjx-c1D44E');
     expect(css).not.toContain('mjx-c32');
-    const urls = findings.map((f) => f.message).join(' ');
+    const urls = findings.map((f) => f.args?.[0]).join(' ');
     expect(urls).toContain('mjx-tex-n.woff2');
     expect(urls).not.toContain('mjx-tex-i.woff2');
   });

@@ -1,4 +1,4 @@
-// Feste Befund-Codes (Bauplan Task 4). Tests prüfen Codes, nicht Texte.
+// Feste Befund-Codes (Bauplan Task 4). Tests prüfen Codes, nicht Texte. Der Satz zu einem Befund steht in `src/i18n/strings.ts` unter `finding.<code>` (und `finding.<code>.<variant>`).
 export const CODES = {
   recipeUnknownKey: 'recipe.unknown-key',
   recipeValueLater: 'recipe.value-later',
@@ -50,3 +50,29 @@ export const CODES = {
 } as const;
 
 export type FindingCode = (typeof CODES)[keyof typeof CODES];
+
+/**
+ * Die Varianten je Code: ein Code, der mehrere Sätze trägt, nennt sie hier (`Finding.variant`). Jeder Code hat einen Grundsatz `finding.<code>`, jede Variante dazu `finding.<code>.<variant>`,
+ * beide in EN und DE (Test `tests/core/finding-text.test.ts`; er liest auch den Quelltext nach `variant: '…'` und meldet eine Variante, die hier fehlt).
+ */
+export const VARIANTS: Readonly<Record<string, readonly string[]>> = {
+  'recipe.invalid': [
+    'not-object', 'one-of', 'missing', 'type', 'too-short', 'not-in-enum', 'below-minimum', 'above-maximum', 'duplicate-key', 'format',
+    'output-limit', 'column-header', 'grids-object', 'grids-states-missing', 'grids-states-shape', 'grids-state-words', 'grids-choice',
+    'source-path', 'source-key', 'source-folder-empty', 'section-source', 'section-path', 'section-note-missing', 'section-note-placed', 'section-folder-empty', 'section-notes-placed',
+  ],
+  'set.empty': ['note', 'folder'],
+  'prepare.frame-replaced': ['one'],
+  'render.placeholder-lost': ['lang'],
+  'guard.removed': ['element', 'attribute', 'declaration', 'svg', 'comment'],
+  'guard.reparse': ['changed'],
+  'media.svg-rejected': ['problems'],
+  'link.scheme': ['no-scheme'],
+  'embed.missing': ['not-loaded'],
+  'mark.duplicate': ['heading-id', 'footnote-id'],
+  'mark.missing-target': ['footnote-form', 'footnote-target'],
+  'field.missing': ['summary-line'],
+  'final.forbidden': ['vault-path'],
+  'output.write-failed': ['no-path', 'result-file'],
+  'heading.capped': ['one'],
+};

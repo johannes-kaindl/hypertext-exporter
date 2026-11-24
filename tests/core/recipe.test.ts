@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { CODES } from '../../src/core/finding-codes';
 import { DEFAULT_RECIPE, notYetFindings, parseRecipe, recipeYaml } from '../../src/core/recipe';
 import type { NoteInput, Recipe } from '../../src/core/types';
+import { textOf } from './text-of';
 
 describe('DEFAULT_RECIPE', () => {
   it('hat genau die Standardwerte aus Spec 10.10 plus lang en', () => {
@@ -189,8 +190,8 @@ describe('parseRecipe', () => {
     expect(f).toHaveLength(1);
     expect(f[0]?.severity).toBe('error');
     expect(f[0]?.code).toBe(CODES.recipeValueLater);
-    expect(f[0]?.message).toContain('embeds');
-    expect(f[0]?.message).toContain('späteren Fassung');
+    expect(textOf(f[0])).toContain('embeds');
+    expect(textOf(f[0])).toContain('later version');
     expect(f[0]?.recipePath).toBe('embeds');
     // der Alias meldet unter dem festen Namen
     expect(only({ einbettungen: 'live' })[0]?.recipePath).toBe('embeds');

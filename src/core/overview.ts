@@ -67,7 +67,7 @@ export function buildOverview(
     if (slug === '') return;
     const first = owner.get(slug);
     if (first !== undefined) {
-      findings.push({ severity: 'warning', code: CODES.fieldAttrCollision, message: `Die Felder „${first}“ und „${column.field}“ ergeben beide das Attribut data-ht-${slug}; gesetzt wird nur das erste`, recipePath: `overview[${i}]` });
+      findings.push({ severity: 'warning', code: CODES.fieldAttrCollision, args: [first, column.field, `data-ht-${slug}`], recipePath: `overview[${i}]` });
       return;
     }
     owner.set(slug, column.field);
@@ -91,7 +91,7 @@ export function buildOverview(
     });
   });
   for (const [name, inNotes] of missingIn) {
-    findings.push({ severity: 'warning', code: CODES.fieldMissing, message: `Das Feld „${name}“ fehlt oder ist leer in ${inNotes.size} von ${notes.length} Notizen` });
+    findings.push({ severity: 'warning', code: CODES.fieldMissing, args: [name, inNotes.size, notes.length] });
   }
 
   const table = doc.createElement('div');

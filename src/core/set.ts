@@ -20,7 +20,7 @@ import { baseName, resolveRelPath, splitFileName } from '../vendor/kit/rel-path'
 import { CODES } from './finding-codes';
 import { sortFindings } from './findings';
 import { orderByMention } from './mention-order';
-import type { Column, ExportScope, ExportSet, Finding, NoteInput, OrderRule, Recipe, SectionSpec, SetGroup, SetNode, SetNote, SourceSpec } from './types';
+import type { Column, ExportScope, ExportSet, Finding, FindingArg, NoteInput, OrderRule, Recipe, SectionSpec, SetGroup, SetNode, SetNote, SourceSpec } from './types';
 
 /** Die festen Aliase der drei Felder, denen das Plugin selbst eine Bedeutung gibt (Spec 10.10); ein zugeordneter Name aus `fields` tritt davor. */
 const FIXED = { title: ['title', 'titel'], order: ['order', 'reihenfolge'], exclude: ['exclude', 'ausschliessen'] } as const;
@@ -37,8 +37,8 @@ const nfc = (path: string): string => path.normalize('NFC');
 const dirOf = (path: string): string => (path.includes('/') ? path.slice(0, path.lastIndexOf('/')) : '');
 const lastSegment = (path: string): string => baseName(path);
 
-function note(code: string, severity: Finding['severity'], message: string, extra: { notePath?: string; recipePath?: string } = {}): Finding {
-  return { severity, code, message, ...extra };
+function note(code: string, severity: Finding['severity'], variant: string | undefined, args: readonly FindingArg[], extra: { notePath?: string; recipePath?: string } = {}): Finding {
+  return { severity, code, ...(variant !== undefined ? { variant } : {}), args, ...extra };
 }
 
 /** Ein Text-, Zahl- oder Wahrheitswert als Gruppenwert; Listen, Objekte und Leeres sind kein Wert. */
@@ -59,11 +59,11 @@ export function resolveSourcePaths(entryPath: string, sources: SourceSpec[]): { 
     const recipePath = `sources[${i}]`;
     const resolved = resolveRelPath(baseDir, source.path);
     if (!resolved.ok) {
-      findings.push(note(CODES.recipeInvalid, 'error', `${recipePath}: Der Pfad „${source.path}“ liegt außerhalb des Vaults oder ist unbrauchbar (${resolved.problem})`, { recipePath }));
+      findings.push(note(CODES.recipeInvalid, 'error', 'source-path', [recipePath, source.path, resolved.problem], { recipePath }));
       return;
     }
     if (keys.has(source.key)) {
-      findings.push(note(CODES.recipeInvalid, 'error', `${recipePath}: Der Schlüssel „${source.key}“ steht schon bei einer früheren Quelle`, { recipePath }));
+      findings.push(note(CODES.recipeInvalid, 'error', 'source-key', [recipePath, source.key], { recipePath }));
       return;
     }
     keys.add(source.key);
@@ -110,8 +110,8 @@ export function buildSet(scope: ExportScope, notes: NoteInput[], recipe: Recipe)
   const lookup = (path: string): NoteInput | undefined => byPath.get(nfc(path));
 
   const finish = (set: ExportSet): { set: ExportSet; findings: Finding[] } => ({ set, findings: sortFindings(findings) });
-  const emptySet = (message: string): { set: ExportSet; findings: Finding[] } => {
-    findings.push(note(CODES.setEmpty, 'error', message));
+  const emptySet = (variant: string, args: readonly FindingArg[]): { set: ExportSet; findings: Finding[] } => {
+    findings.push(note(CODES.setEmpty, 'error', variant, args));
     const entry: SetNote = { path: '', title: '', frontmatter: {}, body: '', depth: 0 };
     return finish({ title: recipe.title ?? '', entry, nodes: [], notesInOrder: [] });
   };
@@ -127,7 +127,7 @@ export function buildSet(scope: ExportScope, notes: NoteInput[], recipe: Recipe)
   // --- Einzelnotiz: die Menge ist diese Notiz, zugleich Einstieg (Spec 10.1).
   if (scope.kind === 'note') {
     const only = lookup(scope.entryPath);
-    if (only === undefined) return emptySet(`Die Notiz „${scope.entryPath}“ gibt es nicht`);
+    if (only === undefined) return emptySet('note', [scope.entryPath]);
     const entry = setNoteOf(only, 0);
     return finish({ title: recipe.title ?? entry.title, entry, nodes: [], notesInOrder: [entry] });
   }
@@ -144,10 +144,10 @@ export function buildSet(scope: ExportScope, notes: NoteInput[], recipe: Recipe)
     if (n === explicit) ok = true;
     else if (n.body.trim() === '') {
       ok = false;
-      findings.push(note(CODES.setEmptyFile, 'info', 'Die Notiz hat keinen Körper und wird übergangen', { notePath: n.path }));
+      findings.push(note(CODES.setEmptyFile, 'info', undefined, [], { notePath: n.path }));
     } else if (isTrueValue(getField(buildFmIndex(n.frontmatter), excludeAliases))) {
       ok = false;
-      findings.push(note(CODES.setExcluded, 'info', 'Die Notiz ist ausgeschlossen (Feld exclude) und wird übergangen', { notePath: n.path }));
+      findings.push(note(CODES.setExcluded, 'info', undefined, [], { notePath: n.path }));
     }
     verdict.set(key, ok);
     return ok;
@@ -174,7 +174,7 @@ export function buildSet(scope: ExportScope, notes: NoteInput[], recipe: Recipe)
     const first = overall.intro ?? flattenFolderTree(overall)[0];
     entryInput = first === undefined ? undefined : lookup(first.path);
   }
-  if (entryInput === undefined) return emptySet(`Der Ordner „${scope.folder}“ enthält keine Notiz`);
+  if (entryInput === undefined) return emptySet('folder', [scope.folder]);
   const entry = setNoteOf(entryInput, 0);
   const entryNote: NoteInput = entryInput;
 
@@ -192,7 +192,7 @@ export function buildSet(scope: ExportScope, notes: NoteInput[], recipe: Recipe)
     for (const page of flattenFolderTree(tree)) claimed.add(nfc(page.path));
     if (files.length === 0) {
       const index = recipe.sources.findIndex((s) => s.key === source.key);
-      findings.push(note(CODES.recipeInvalid, 'warning', `sources[${index}]: Der Ordner „${source.folder}“ enthält keine Notiz`, { recipePath: `sources[${index}]` }));
+      findings.push(note(CODES.recipeInvalid, 'warning', 'source-folder-empty', [`sources[${index}]`, source.folder], { recipePath: `sources[${index}]` }));
       return;
     }
     sourceTrees.push({ key: source.key, tree, title: source.title, folder: source.folder });
@@ -276,7 +276,7 @@ export function buildSet(scope: ExportScope, notes: NoteInput[], recipe: Recipe)
         const value = scalarText(n === undefined ? undefined : readField(n.frontmatter, field, []));
         if (value === undefined) {
           missing ??= { key: NO_VALUE, title: NO_VALUE, sortName: NO_VALUE, pages: [] };
-          findings.push(note(CODES.setNoGroupValue, 'info', `Die Notiz hat keinen Wert im Feld ${field} und steht in der Gruppe „${NO_VALUE}“`, { notePath: page.path }));
+          findings.push(note(CODES.setNoGroupValue, 'info', undefined, [field, NO_VALUE], { notePath: page.path }));
           bucket = missing;
         } else {
           bucket = buckets.get(value) ?? { key: value, title: value, sortName: value, pages: [] };
@@ -336,11 +336,11 @@ export function buildSet(scope: ExportScope, notes: NoteInput[], recipe: Recipe)
     const used = new Set<string>();
     recipe.sections.forEach((section: SectionSpec, i) => {
       const recipePath = `sections[${i}]`;
-      const invalid = (message: string, severity: Finding['severity'] = 'error'): void => { findings.push(note(CODES.recipeInvalid, severity, `${recipePath}: ${message}`, { recipePath })); };
+      const invalid = (variant: string, args: readonly FindingArg[], severity: Finding['severity'] = 'error'): void => { findings.push(note(CODES.recipeInvalid, severity, variant, [recipePath, ...args], { recipePath })); };
       if (section.kind === 'source') {
         const source = sourceTrees.find((s) => s.key === section.path);
         if (source === undefined) {
-          if (!resolved.folders.some((f) => f.key === section.path)) invalid(`Die Quelle „${section.path}“ steht nicht unter sources`);
+          if (!resolved.folders.some((f) => f.key === section.path)) invalid('section-source', [section.path]);
           return;
         }
         used.add(source.key);
@@ -349,18 +349,18 @@ export function buildSet(scope: ExportScope, notes: NoteInput[], recipe: Recipe)
       }
       const target = resolveRelPath(scope.folder, section.path, { allowEmpty: true });
       if (!target.ok) {
-        invalid(`Der Pfad „${section.path}“ liegt außerhalb des Vaults oder ist unbrauchbar (${target.problem})`);
+        invalid('section-path', [section.path, target.problem]);
         return;
       }
       if (section.kind === 'note') {
         const n = lookup(target.path);
         if (n === undefined) {
-          invalid(`Die Notiz „${target.path}“ gibt es nicht`);
+          invalid('section-note-missing', [target.path]);
           return;
         }
         const key = nfc(n.path);
         if (claimed.has(key) || placed.has(key)) {
-          invalid(`Die Notiz „${n.path}“ steht schon an anderer Stelle der Seite`, 'warning');
+          invalid('section-note-placed', [n.path], 'warning');
           return;
         }
         if (!usable(n)) return;
@@ -369,12 +369,12 @@ export function buildSet(scope: ExportScope, notes: NoteInput[], recipe: Recipe)
         return;
       }
       if (!all.some((n) => isInFolder(n.path, target.path, { root: true }))) {
-        invalid(`Der Ordner „${target.path}“ enthält keine Notiz`);
+        invalid('section-folder-empty', [target.path]);
         return;
       }
       const inFolder = all.filter((n) => isInFolder(n.path, target.path, { root: true }) && !claimed.has(nfc(n.path)) && usable(n));
       const free = inFolder.filter((n) => !placed.has(nfc(n.path)));
-      if (free.length < inFolder.length) invalid(`${inFolder.length - free.length} Notiz(en) stehen schon in einem früheren Bereich`, 'warning');
+      if (free.length < inFolder.length) invalid('section-notes-placed', [inFolder.length - free.length], 'warning');
       const tree = treeOf(target.path, free);
       if (free.length === 0 || flattenFolderTree(tree).length === 0) return;
       claimPages(tree);

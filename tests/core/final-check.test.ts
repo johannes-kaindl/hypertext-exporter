@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { finalCheck, finalGuard } from '../../src/core/final-check';
 import { buildPage, pageScript } from '../../src/core/page';
 import { guardExportTree } from '../../src/vendor/kit/export-guard';
+import { textOf } from './text-of';
 
 const PAGE = document.createElement('div');
 // Benutzerpfade werden zusammengesetzt, damit kein getrackter Text einen Maintainer-Pfad trägt.
@@ -40,7 +41,7 @@ describe('finalCheck', () => {
 
   it('nennt den Basispfad nicht in der Meldung', () => {
     const f = finalCheck(`<p>${BASE}</p>`, PAGE, BASE);
-    for (const finding of f) expect(finding.message).not.toContain('Mein Vault');
+    for (const finding of f) expect(textOf(finding)).not.toContain('Mein Vault');
   });
 
   it('meldet /Users/, /home/ und C:\\Users als warning final.user-path', () => {
@@ -120,8 +121,8 @@ describe('finalCheck', () => {
     page.innerHTML = '<h2 id="a">A</h2><h2 id="a">A2</h2><p><a href="#a">gut</a> <a href="#weg">tot</a></p>';
     const out = finalCheck('<p>sauber</p>', page, null);
     expect(out.map((f) => `${f.severity}:${f.code}`)).toEqual(['error:mark.duplicate', 'error:mark.missing-target']);
-    expect(out[0]?.message).toContain('a');
-    expect(out[1]?.message).toContain('#weg');
+    expect(textOf(out[0])).toContain('a');
+    expect(textOf(out[1])).toContain('#weg');
   });
 
   it('meldet bei eindeutigen Marken und lebenden Sprüngen nichts', () => {
@@ -155,13 +156,13 @@ describe('finalGuard (zweiter Schutzdurchgang auf dem neu gelesenen Text der Sei
     expect(parse(html).querySelectorAll('[onerror]').length).toBe(0);
     const out = finalGuard(parse(html));
     expect(out.map((f) => `${f.severity}:${f.code}`)).toEqual(['error:final.guard']);
-    expect(out[0]?.message).toContain('#tree');
+    expect(textOf(out[0])).toContain('#tree');
   });
 
   it('meldet, was ein Baum mit gelesenem Ereignis-Attribut trägt, als error final.guard (und nennt Element und Attribut)', () => {
     const out = finalGuard(parse('<!doctype html><body><main id="inhalt"><img src="x" onerror="document.title=1"></main></body>'));
     expect(out.map((f) => `${f.severity}:${f.code}`)).toEqual(['error:final.guard']);
-    expect(out[0]?.message).toContain('onerror an img');
+    expect(textOf(out[0])).toContain('img[onerror]');
   });
 
   it('meldet eine saubere Seite nicht (Gegenprobe), auch nicht mit Bild, Tabelle, Inline-SVG und eigenem Stil im Kopf', () => {
@@ -180,7 +181,7 @@ describe('finalGuard (zweiter Schutzdurchgang auf dem neu gelesenen Text der Sei
     expect(finalGuard(page(good))).toEqual([]);
     const out = finalGuard(page(bad));
     expect(out.map((f) => f.code)).toEqual(['final.guard']);
-    expect(out[0]?.message).toContain('src an img');
+    expect(textOf(out[0])).toContain('img[src]');
     // als Link- oder Rahmenziel ist data:image/svg+xml weiter ein Befund
     expect(finalGuard(parse(`<!doctype html><body><a href="data:image/svg+xml;base64,${b64(good)}">x</a></body>`))).toHaveLength(1);
   });
@@ -190,7 +191,7 @@ describe('finalGuard (zweiter Schutzdurchgang auf dem neu gelesenen Text der Sei
     const out = finalGuard(parse(html));
     expect(out).toHaveLength(1);
     expect(out[0]?.code).toBe('final.guard');
-    expect(out[0]?.message).toContain('×30');
+    expect(textOf(out[0])).toContain('×30');
   });
 });
 
@@ -215,7 +216,7 @@ describe('die fertige Seite mit Werkzeug-Block und Skript (Etappe 7)', () => {
     const { doc } = pageOf('<p>x</p><script>alert(1)</script>');
     const found = finalGuard(doc, pageScript('de'));
     expect(found.map((f) => f.code)).toEqual(['final.guard']);
-    expect(found[0]?.message).toContain('script');
+    expect(textOf(found[0])).toContain('script');
     const own = pageOf('<p>x</p>');
     expect(finalGuard(own.doc).map((f) => f.code)).toEqual(['final.guard']);
   });
@@ -224,7 +225,7 @@ describe('die fertige Seite mit Werkzeug-Block und Skript (Etappe 7)', () => {
     const { text, doc } = pageOf(`<p id="${id}">fremd</p>`);
     const found = finalCheck(text, doc, null).filter((f) => f.code === 'mark.duplicate');
     expect(found.map((f) => f.severity)).toEqual(['error']);
-    expect(found[0]?.message).toContain(`„${id}“`);
+    expect(textOf(found[0])).toContain(`“${id}”`);
   });
 
   it('Clobbering: ein Element mit name="suche" oder name="getElementById" ändert den Werkzeug-Block nicht (das Skript liest nichts vom Dokument ab)', () => {

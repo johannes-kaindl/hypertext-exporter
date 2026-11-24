@@ -8,7 +8,7 @@ import { CODES } from '../core/finding-codes';
 import { exportOk, resultJson } from '../core/result-file';
 import type { ExportResult, Finding } from '../core/types';
 import { errorMessage } from '../vendor/kit/error-message';
-import { getLang } from '../vendor/kit/i18n';
+import { getLang, t } from '../vendor/kit/i18n';
 import { outputFileName, resolveOutputPath, type OutputDestination } from '../vendor/kit/output-target';
 import { baseName, splitFileName } from '../vendor/kit/rel-path';
 import { joinVaultPath, vaultDirname } from '../vendor/kit/vault-path';
@@ -36,8 +36,10 @@ const KIT_DESTINATION: Record<HtSettings['destination'], OutputDestination> = {
   share: 'share',
 };
 
-function writeFailure(message: string): Finding {
-  return { severity: 'error', code: CODES.outputWriteFailed, message };
+function writeFailure(reason?: string): Finding {
+  return reason === undefined
+    ? { severity: 'error', code: CODES.outputWriteFailed, variant: 'no-path', args: [] }
+    : { severity: 'error', code: CODES.outputWriteFailed, args: [reason] };
 }
 
 function failed(result: ExportResult, ...extra: Finding[]): ExportResult {
@@ -57,7 +59,7 @@ export async function writeExport(plugin: OutputHost, result: ExportResult, entr
   try {
     return await write(plugin, result, entryPath);
   } catch (e) {
-    return resultJson(failed(result, writeFailure(errorMessage(e))), null);
+    return resultJson(failed(result, writeFailure(errorMessage(e))), null, t);
   }
 }
 
@@ -93,31 +95,31 @@ async function write(plugin: OutputHost, result: ExportResult, entryPath: string
   const common = pathInput(plugin, entryPath);
 
   if (destination === 'share') {
-    if (html === undefined) return resultJson(failed(result), null);
+    if (html === undefined) return resultJson(failed(result), null, t);
     const strings = getLang() === 'de' ? SHARE_EXPORT_STRINGS_DE : SHARE_EXPORT_STRINGS_EN;
     const shared = await writeExportOutput(plugin.app, new TextEncoder().encode(html), { ...common, mime: MIME_HTML, destination, share: { dir: SHARE_DIR, strings } });
-    if (!shared.ok) return resultJson(failed(result, writeFailure(shared.message)), null);
-    return resultJson(result, null);
+    if (!shared.ok) return resultJson(failed(result, writeFailure(shared.message)), null, t);
+    return resultJson(result, null, t);
   }
 
   // Ort der Ergebnisdatei: neben der Seite, mit demselben bereinigten Namen.
   const paths = outputPaths(plugin, entryPath);
   const jsonPath = paths?.json ?? null;
-  if (jsonPath === null) return resultJson(failed(result, writeFailure('Kein Ausgabepfad.')), null);
+  if (jsonPath === null) return resultJson(failed(result, writeFailure()), null, t);
 
   let final = result;
   let outPath: string | null = null;
   if (html !== undefined) {
     const written = await writeExportOutput(plugin.app, new TextEncoder().encode(html), { ...common, mime: MIME_HTML, destination });
     if (written.ok && written.destination !== 'share') outPath = written.path;
-    else final = failed(result, writeFailure(written.ok ? 'Kein Ausgabepfad.' : written.message));
+    else final = failed(result, written.ok ? writeFailure() : writeFailure(written.message));
   } else {
     final = failed(result);
   }
 
-  const json = resultJson(final, outPath);
+  const json = resultJson(final, outPath, t);
   const stored = await replaceFileSafely(adapter, jsonPath, new TextEncoder().encode(json));
   if (stored.ok) return json;
   // Die Seite liegt (oder der Lauf ist gescheitert), aber die Ergebnisdatei ließ sich nicht schreiben: der Aufrufer erfährt es aus dem Rückgabetext.
-  return resultJson({ ...final, findings: [...final.findings, { severity: 'warning', code: CODES.outputWriteFailed, message: `Ergebnisdatei nicht geschrieben: ${stored.message}` }] }, outPath);
+  return resultJson({ ...final, findings: [...final.findings, { severity: 'warning', code: CODES.outputWriteFailed, variant: 'result-file', args: [stored.message] }] }, outPath, t);
 }

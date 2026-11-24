@@ -1,6 +1,6 @@
 # Troubleshooting
 
-Each entry starts with what you see, then the cause and what to do. The notices are the plugin's English text; in a German interface the same messages appear in German. The text of an individual finding is German in this version; the code in the Findings tab is what to look up in the [findings reference](reference/findings.md).
+Each entry starts with what you see, then the cause and what to do. The notices and the text of every finding are in the language of the Obsidian interface, English or German. The code in the Findings tab is what to look up in the [findings reference](reference/findings.md).
 
 ## The export is not available yet.
 

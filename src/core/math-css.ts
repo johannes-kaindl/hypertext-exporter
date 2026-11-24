@@ -165,7 +165,7 @@ export function filterMathCss(styles: string[], usedCodepoints: Set<string>, use
   const findings: Finding[] = Array.from(urls).map((url) => ({
     severity: 'info',
     code: CODES.mathFontUrl,
-    message: `Mathe-Schrift nicht eingebettet, Formeln zeigen die Ersatzschrift: ${url}`,
+    args: [url],
   }));
   return { css, findings };
 }

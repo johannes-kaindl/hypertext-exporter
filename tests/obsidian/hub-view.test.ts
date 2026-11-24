@@ -2,7 +2,7 @@
 import type { App, WorkspaceLeaf } from 'obsidian';
 import { beforeAll, describe, expect, it, vi } from 'vitest';
 import { registerI18n } from '../../src/i18n/strings';
-import type { Finding } from '../../src/core/types';
+import type { ResultFinding } from '../../src/core/result-file';
 import type { ExportActions } from '../../src/obsidian/actions';
 import { ExportPanel, FindingsPanel, HtHubView, type HubHost } from '../../src/obsidian/hub-view';
 import { DEFAULT_SETTINGS, type HtSettings } from '../../src/obsidian/settings';
@@ -22,7 +22,7 @@ function fakeApp(paths: string[] = []): { app: App; openLinkText: ReturnType<typ
   return { app, openLinkText };
 }
 
-const F = (over: Partial<Finding>): Finding => ({ severity: 'info', code: 'set.empty-file', message: 'leer', ...over });
+const F = (over: Partial<ResultFinding>): ResultFinding => ({ severity: 'info', code: 'set.empty-file', message: 'leer', ...over });
 
 describe('FindingsPanel', () => {
   it('zeigt bei [] den Empty-State und keine Liste', () => {

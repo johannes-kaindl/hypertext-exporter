@@ -8,6 +8,7 @@ import { renderNote, translateGuardFindings, type RenderDeps } from '../../src/o
 import type { ExportGuardFinding } from '../../src/vendor/kit/export-guard';
 import type { RenderedNote, RenderNoteOptions } from '../../src/vendor/kit-obsidian/render-note';
 import { installObsidianDom } from './dom-polyfill';
+import { textOf } from '../core/text-of';
 
 beforeAll(installObsidianDom);
 
@@ -40,11 +41,11 @@ describe('translateGuardFindings', () => {
     ], note.path);
     expect(out.map((f) => f.code)).toEqual([CODES.guardRemoved, CODES.guardRemoved, CODES.guardRemoved]);
     expect(out.every((f) => f.notePath === note.path && f.code.startsWith('guard.'))).toBe(true);
-    const attr = out.find((f) => f.message.includes('onclick'));
+    const attr = out.find((f) => textOf(f).includes('onclick'));
     expect(attr?.severity).toBe('info');
-    expect(attr?.message).toContain('3');
-    expect(attr?.message).toContain('onclick an a ×2');
-    expect(out.find((f) => f.message.includes('iframe'))?.message).toContain('1');
+    expect(attr?.args?.[0]).toBe(3);
+    expect(textOf(attr)).toContain('a[onclick] ×2');
+    expect(out.find((f) => textOf(f).includes('iframe'))?.args?.[0]).toBe(1);
   });
   it('meldet nichts, wo nichts entfernt wurde', () => {
     expect(translateGuardFindings([], note.path)).toEqual([]);
@@ -73,7 +74,7 @@ describe('renderNote: Schutzdurchgang läuft im Ablauf', () => {
     const removed = out.findings.filter((f) => f.code === CODES.guardRemoved);
     expect(removed.length).toBeGreaterThanOrEqual(3);
     expect(removed.every((f) => f.notePath === note.path)).toBe(true);
-    expect(removed.map((f) => f.message).join(' ')).toMatch(/iframe/);
+    expect(removed.map((f) => textOf(f)).join(' ')).toMatch(/iframe/);
   });
 
   it('lässt ein Bild mit data:, eine harmlose Zeichnung, ein Video und style="color:red" stehen und meldet nichts', async () => {

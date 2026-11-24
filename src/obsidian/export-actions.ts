@@ -3,6 +3,7 @@
 import { Notice, Platform, type App } from 'obsidian';
 import { CODES } from '../core/finding-codes';
 import { countFindings } from '../core/findings';
+import { toResultFinding, type ResultFinding } from '../core/result-file';
 import type { ExportResult, ExportScope, Finding } from '../core/types';
 import { errorMessage } from '../vendor/kit/error-message';
 import { t } from '../vendor/kit/i18n';
@@ -15,7 +16,7 @@ import { startRunProgress, type ExportProgressRun } from './progress';
 
 /** Was die Aktionen vom Plugin brauchen: der Ablauf und das Zeigen der Befunde (öffnet die Ansicht). */
 export interface ActionsHost extends PipelineHost {
-  showFindings(findings: Finding[]): Promise<void>;
+  showFindings(findings: ResultFinding[]): Promise<void>;
 }
 
 /** Nähte für Tests. */
@@ -25,7 +26,7 @@ export interface ActionsDeps {
   pipeline?: PipelineDeps;
 }
 
-interface ResultFile { ok: boolean; path: string | null; findings: Finding[] }
+interface ResultFile { ok: boolean; path: string | null; findings: ResultFinding[] }
 
 function readResult(json: string): ResultFile {
   return JSON.parse(json) as ResultFile;
@@ -47,14 +48,14 @@ export function createExportActions(host: ActionsHost, deps: ActionsDeps = {}): 
     try { await work(); } catch (e) { new Notice(t('notice.failed', errorMessage(e))); }
   };
 
-  const show = async (findings: Finding[]): Promise<void> => {
+  const show = async (findings: ResultFinding[]): Promise<void> => {
     try { await host.showFindings(findings); } catch (e) { new Notice(t('notice.failed', errorMessage(e))); }
   };
 
   const exportScope = async (scope: ExportScope): Promise<void> => {
     const progress = startProgress();
     let failure: string | undefined;
-    let findings: Finding[] = [];
+    let findings: ResultFinding[] = [];
     let ok = false;
     let path: string | null = null;
     try {
@@ -64,7 +65,7 @@ export function createExportActions(host: ActionsHost, deps: ActionsDeps = {}): 
       const entryPath = result.entryPath ?? scope.entryPath;
       if (entryPath === '') {
         // Es gibt keine Einstiegsnotiz, also keinen Ort für eine Ergebnisdatei.
-        findings = result.findings;
+        findings = result.findings.map((f) => toResultFinding(f, t));
       } else {
         const written = readResult(await writeExport(host, result, entryPath));
         findings = written.findings;
@@ -73,11 +74,12 @@ export function createExportActions(host: ActionsHost, deps: ActionsDeps = {}): 
       }
     } catch (e) {
       failure = errorMessage(e);
-      findings = [{ severity: 'error', code: CODES.exportFailed, message: failure }];
+      const failedFinding: Finding = { severity: 'error', code: CODES.exportFailed, args: [failure] };
+      findings = [toResultFinding(failedFinding, t)];
       // Eine alte Ergebnisdatei mit ok:true darf nach einem gescheiterten Lauf nicht liegen bleiben.
       if (scope.entryPath !== '') {
         try {
-          await writeExport(host, { ok: false, fileName: baseName(scope.entryPath), findings, stats: { notes: 0, bytes: 0, mediaBytes: {} } }, scope.entryPath);
+          await writeExport(host, { ok: false, fileName: baseName(scope.entryPath), findings: [failedFinding], stats: { notes: 0, bytes: 0, mediaBytes: {} } }, scope.entryPath);
         } catch { /* writeExport wirft nie; sicher ist sicher */ }
       }
     } finally {
@@ -118,7 +120,7 @@ export function createExportActions(host: ActionsHost, deps: ActionsDeps = {}): 
         case 'cancelled': new Notice(t('notice.cancelled')); break;
         case 'failed': new Notice(t('check.failed')); break;
       }
-      await show(check.findings);
+      await show(check.findings.map((f) => toResultFinding(f, t)));
     }),
 
     openExport: (entryPath) => safely(async () => {

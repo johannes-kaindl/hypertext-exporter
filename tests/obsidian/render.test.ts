@@ -8,6 +8,7 @@ import type { RunControl, SetNote } from '../../src/core/types';
 import { RENDER_HOST_CSS, assertWindowVisible, renderNote, type RenderDeps } from '../../src/obsidian/render';
 import { RENDER_NOTE_CSS, type RenderNoteFinding, type RenderedNote, type RenderNoteOptions } from '../../src/vendor/kit-obsidian/render-note';
 import { installObsidianDom } from './dom-polyfill';
+import { textOf } from '../core/text-of';
 
 beforeAll(installObsidianDom);
 
@@ -51,7 +52,7 @@ describe('assertWindowVisible', () => {
     const f = assertWindowVisible({ visibilityState: 'hidden' });
     expect(f?.severity).toBe('error');
     expect(f?.code).toBe(CODES.renderHiddenWindow);
-    expect(f?.message).toContain('Obsidian-Fenster nicht minimieren');
+    expect(textOf(f ?? undefined)).toContain('Do not minimize the Obsidian window');
   });
   it('meldet nichts bei einem sichtbaren Fenster', () => {
     expect(assertWindowVisible({ visibilityState: 'visible' })).toBeNull();
@@ -84,7 +85,7 @@ describe('renderNote: Zeichnen über das Kit', () => {
     const out = await renderNote(fakeApp({}), note, DEFAULT_RECIPE, run(), d.deps);
     expect(out.findings).toHaveLength(1);
     expect(out.findings[0]).toMatchObject({ severity: 'error', code: CODES.renderHiddenWindow, notePath: note.path });
-    expect(out.findings[0]?.message).toContain('Obsidian-Fenster nicht minimieren');
+    expect(textOf(out.findings[0])).toContain('Do not minimize the Obsidian window');
     expect(out.root.childNodes).toHaveLength(0);
   });
 
@@ -97,15 +98,15 @@ describe('renderNote: Zeichnen über das Kit', () => {
     const out = await renderNote(fakeApp({}), note, DEFAULT_RECIPE, run(), d.deps);
     expect(out.findings.map((f) => f.code)).toEqual([CODES.renderPlaceholder, CODES.renderFailed, CODES.renderMermaidMissing]);
     expect(out.findings.every((f) => f.severity === 'warning' && f.notePath === note.path)).toBe(true);
-    expect(out.findings[2]?.message).toContain('2 von 3');
+    expect(textOf(out.findings[2])).toContain('2 of 3');
   });
 
   it('übersetzt metadata-not-ready (obsidian-kit 0.109.0) als warning mit Notizpfad und Zielnotiz; das Zeichnen läuft weiter', async () => {
     const d = fakeDraw('<p>x</p>', [{ kind: 'metadata-not-ready', target: 'b/ziel.md', ms: 5000 }]);
     const out = await renderNote(fakeApp({}), note, DEFAULT_RECIPE, run(), d.deps);
-    expect(out.findings.map((f) => [f.severity, f.code, f.notePath])).toEqual([['warning', CODES.renderMetadataNotReady, note.path]]);
-    expect(out.findings[0]?.message).toContain('b/ziel.md');
-    expect(out.findings[0]?.message).toContain('5000 ms');
+    expect(out.findings).toEqual([{ severity: 'warning', code: CODES.renderMetadataNotReady, args: ['b/ziel.md', 5000], notePath: note.path }]);
+    expect(textOf(out.findings[0])).toContain('b/ziel.md');
+    expect(textOf(out.findings[0])).toContain('5000 ms');
     expect(out.root.textContent).toBe('x');
   });
 
@@ -139,7 +140,7 @@ describe('renderNote: Einbettungen', () => {
     const out = await renderNote(fakeApp(files), note, DEFAULT_RECIPE, run(), { ...d.deps, inSet });
     expect(out.findings).toHaveLength(1);
     expect(out.findings[0]).toMatchObject({ severity: 'warning', code: CODES.embedMissing, notePath: note.path });
-    expect(out.findings[0]?.message).toContain('gibts-nicht');
+    expect(textOf(out.findings[0])).toContain('gibts-nicht');
   });
 
   it('eine Notiz außerhalb der Menge ergibt embed.outside, eine innerhalb nichts, ein Bild nie', async () => {
@@ -147,7 +148,7 @@ describe('renderNote: Einbettungen', () => {
     const out = await renderNote(fakeApp({ ...files, bild: { path: 'b/bild.png', extension: 'png' } }), note, DEFAULT_RECIPE, run(), { ...d.deps, inSet });
     expect(out.findings).toHaveLength(1);
     expect(out.findings[0]).toMatchObject({ severity: 'warning', code: CODES.embedOutside, notePath: note.path });
-    expect(out.findings[0]?.message).toContain('b/fremd.md');
+    expect(textOf(out.findings[0])).toContain('b/fremd.md');
   });
 
   it('löst das Ziel gegen den Pfad der Notiz auf', async () => {
@@ -163,7 +164,7 @@ describe('renderNote: Einbettungen', () => {
     const out = await renderNote(fakeApp(files, caches), note, DEFAULT_RECIPE, run(), { ...d.deps, inSet });
     expect(out.findings).toHaveLength(1);
     expect(out.findings[0]).toMatchObject({ severity: 'warning', code: CODES.embedMissingSection, notePath: note.path });
-    expect(out.findings[0]?.message).toContain('#Fehlt');
+    expect(textOf(out.findings[0])).toContain('#Fehlt');
   });
 
   it('fehlender Block: embed.missing-section; vorhandener nicht', async () => {
@@ -171,7 +172,7 @@ describe('renderNote: Einbettungen', () => {
     const d = fakeDraw(embed('ziel#^nix') + embed('ziel#^ABC123'));
     const out = await renderNote(fakeApp(files, caches), note, DEFAULT_RECIPE, run(), { ...d.deps, inSet });
     expect(out.findings.map((f) => f.code)).toEqual([CODES.embedMissingSection]);
-    expect(out.findings[0]?.message).toContain('#^nix');
+    expect(textOf(out.findings[0])).toContain('#^nix');
   });
 
   it('ohne Index der Zielnotiz gibt es kein Urteil über den Abschnitt', async () => {
@@ -289,9 +290,9 @@ describe('renderNote: Vorbehandlung über das Kit', () => {
     const hits = two.findings.filter((f) => f.code === CODES.prepareFrameReplaced);
     expect(hits).toHaveLength(1);
     expect(hits[0]).toMatchObject({ severity: 'info', notePath: note.path });
-    expect(hits[0]?.message).toContain('2 rohe Rahmen (iframe ×2)');
+    expect(textOf(hits[0])).toContain('2 raw frames (iframe ×2)');
     const one = await renderNote(fakeApp({}), withBody('A <iframe src="app://x"></iframe> B'), recipeWith('core'), run(), drawFromMarkdown().deps);
-    expect(one.findings.filter((f) => f.code === CODES.prepareFrameReplaced)[0]?.message).toContain('Ein roher Rahmen');
+    expect(textOf(one.findings.filter((f) => f.code === CODES.prepareFrameReplaced)[0])).toContain('A raw frame');
     const none = await renderNote(fakeApp({}), withBody('Nur Text.'), recipeWith('core'), run(), drawFromMarkdown().deps);
     expect(none.findings.filter((f) => f.code === CODES.prepareFrameReplaced)).toEqual([]);
   });

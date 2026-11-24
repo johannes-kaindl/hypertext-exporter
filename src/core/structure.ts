@@ -18,7 +18,7 @@ import { slugify } from '../vendor/kit/slug';
 import { CODES } from './finding-codes';
 import { sortFindings } from './findings';
 import { resolveSourcePaths } from './set';
-import type { ExportSet, Finding, Recipe, SetGroup, SetNode, SetNote } from './types';
+import type { ExportSet, Finding, FindingArg, Recipe, SetGroup, SetNode, SetNote } from './types';
 
 /** Was der Aufrufer zu Notizen und Gruppen beisteuert (beides baut `overview.ts` aus dem Frontmatter). */
 export interface StructureExtras {
@@ -68,7 +68,7 @@ function below(path: string, folder: string): string | null {
  * Überschriften im Baum liest. Die Sprünge, die er selbst gesetzt hat (Fußnoten, `#Überschrift` in derselben Notiz, `href="#<marke>--…"`), tragen danach `data-export-link="jump"`, damit der
  * Link-Umschreiber sie stehen lässt; was er nicht auflösen konnte (`#^block`, eine fehlende Überschrift), bleibt für den Umschreiber und dessen Befunde.
  */
-function markRenderedNote(root: HTMLElement, marks: NoteMarks, headingBase: number, flag: (severity: Finding['severity'], code: string, message: string) => void): void {
+function markRenderedNote(root: HTMLElement, marks: NoteMarks, headingBase: number, flag: (severity: Finding['severity'], code: string, variant: string | undefined, args: readonly FindingArg[]) => void): void {
   const doc = root.ownerDocument;
   const walked = walkAnchors(root, marks, { createEl: (tag) => doc.createElement(tag) }, { baseLevel: headingBase });
   const own = `#${marks.mark}--`;
@@ -78,12 +78,12 @@ function markRenderedNote(root: HTMLElement, marks: NoteMarks, headingBase: numb
     a.removeAttribute('data-href');
   }
   for (const f of walked.findings) {
-    if (f.kind === 'heading-level-clamped') flag('info', CODES.headingCapped, `${f.count} Überschrift(en) lagen tiefer als h6 und bleiben bei h6.`);
-    else if (f.kind === 'heading-id-replaced') flag('info', CODES.markDuplicate, `Die Überschrift „${f.text}“ trug die eigene id „${f.id}“; sie bekommt die Marke der Seite.`);
-    else if (f.kind === 'footnote-id-collision') flag('warning', CODES.markDuplicate, `Die Fußnote „${f.id}“ fiele auf die schon vergebene Marke „${f.mark}“ und bleibt, wie sie ist.`);
-    else if (f.kind === 'footnote-form-unknown') flag('warning', CODES.markMissingTarget, `Die Fußnoten-id „${f.id}“ hat eine unbekannte Form und bleibt, wie sie ist.`);
-    else if (f.kind === 'footnote-target-missing') flag('warning', CODES.markMissingTarget, `Der Fußnoten-Sprung „${f.href}“ hat kein Ziel in der Notiz.`);
-    else if (f.kind === 'embed-not-loaded') flag('info', CODES.embedMissing, `Eine Einbettung war beim Zeichnen noch nicht geladen (Marke „${f.mark}“).`);
+    if (f.kind === 'heading-level-clamped') flag('info', CODES.headingCapped, undefined, [f.count]);
+    else if (f.kind === 'heading-id-replaced') flag('info', CODES.markDuplicate, 'heading-id', [f.text, f.id]);
+    else if (f.kind === 'footnote-id-collision') flag('warning', CODES.markDuplicate, 'footnote-id', [f.id, f.mark]);
+    else if (f.kind === 'footnote-form-unknown') flag('warning', CODES.markMissingTarget, 'footnote-form', [f.id]);
+    else if (f.kind === 'footnote-target-missing') flag('warning', CODES.markMissingTarget, 'footnote-target', [f.href]);
+    else if (f.kind === 'embed-not-loaded') flag('info', CODES.embedMissing, 'not-loaded', [f.mark]);
     // fragment-link-unresolved: der Link-Umschreiber meldet ihn (link.heading-missing, link.block)
   }
 }
@@ -148,8 +148,8 @@ export function structure(
   const noteByMark = new Map<string, SetNote>(set.notesInOrder.map((n) => [anchors.get(n.path) ?? '', n]));
   const markOf = (n: SetNote): string => anchors.get(n.path) ?? EMPTY_SLUG;
   const treeOf = (n: SetNote): HTMLElement => roots.get(n.path) ?? doc.createElement('div');
-  const flag = (severity: Finding['severity'], code: string, message: string, notePath?: string): void => {
-    findings.push({ severity, code, message, ...(notePath !== undefined ? { notePath } : {}) });
+  const flag = (severity: Finding['severity'], code: string, variant: string | undefined, args: readonly FindingArg[], notePath?: string): void => {
+    findings.push({ severity, code, ...(variant !== undefined ? { variant } : {}), args, ...(notePath !== undefined ? { notePath } : {}) });
   };
 
   // --- 2. Titelüberschrift, Faltung des Einstiegs, Naht
@@ -167,7 +167,7 @@ export function structure(
       foldHeadingSections(root, foldPorts, { fromLevel: recipe.fold.headingsFrom });
       root.append(...footnoteBlocks);
     }
-    markRenderedNote(root, createNoteMarks(markOf(n)), isEntry ? 2 : 3 + n.depth, (severity, code, message) => flag(severity, code, message, n.path));
+    markRenderedNote(root, createNoteMarks(markOf(n)), isEntry ? 2 : 3 + n.depth, (severity, code, variant, args) => flag(severity, code, variant, args, n.path));
   }
 
   // --- 3. Links
@@ -205,11 +205,11 @@ export function structure(
   for (const n of set.notesInOrder) {
     const root = treeOf(n);
     const seen = new Set<string>();
-    const report = (severity: Finding['severity'], code: string, target: string, message: string): void => {
+    const report = (severity: Finding['severity'], code: string, target: string, variant: string | undefined, args: readonly FindingArg[]): void => {
       const key = `${code}|${target}`;
       if (seen.has(key)) return;
       seen.add(key);
-      flag(severity, code, message, n.path);
+      flag(severity, code, variant, args, n.path);
     };
     // Block-Verweise merken, ehe das Kit die geschriebene Adresse überschreibt
     const blockLinks = new Map<Element, string>();
@@ -231,13 +231,13 @@ export function structure(
     kitFindings.push(...rewriteExportLinks(root, portsFor(n.path), linkOptions).findings);
 
     for (const f of kitFindings) {
-      if (f.kind === 'outside') report('warning', CODES.linkOutside, f.target, `Der Link auf „${f.target}“ führt aus der Menge hinaus und steht als Text.`);
-      else if (f.kind === 'unresolved') report('warning', CODES.linkUnresolved, f.target, `Der Link auf „${f.target}“ ließ sich nicht auflösen und steht als Text.`);
-      else if (f.kind === 'scheme') report('info', CODES.linkScheme, f.target, f.scheme === '' ? `Der Link „${f.target}“ hat keine erlaubte Form und steht als Text.` : `Der Link „${f.target}“ hat das Schema „${f.scheme}:“ und steht als Text.`);
-      else report('info', CODES.linkHeadingMissing, `${f.target}`, `Die Überschrift „${f.heading}“ gibt es in „${f.target}“ nicht; der Link springt zur Notiz.`);
+      if (f.kind === 'outside') report('warning', CODES.linkOutside, f.target, undefined, [f.target]);
+      else if (f.kind === 'unresolved') report('warning', CODES.linkUnresolved, f.target, undefined, [f.target]);
+      else if (f.kind === 'scheme') report('info', CODES.linkScheme, f.target, f.scheme === '' ? 'no-scheme' : undefined, f.scheme === '' ? [f.target] : [f.target, f.scheme]);
+      else report('info', CODES.linkHeadingMissing, `${f.target}`, undefined, [f.heading, f.target]);
     }
     for (const [a, written] of blockLinks) {
-      if (a.getAttribute(JUMP_ATTR) === 'jump') report('info', CODES.linkBlock, written, `Der Verweis „${written}“ zeigt auf einen Block und springt zur Notiz.`);
+      if (a.getAttribute(JUMP_ATTR) === 'jump') report('info', CODES.linkBlock, written, undefined, [written]);
     }
   }
 
@@ -263,7 +263,7 @@ export function structure(
     for (const child of Array.from(from.childNodes)) to.appendChild(child);
   };
   const heading = (level: number, text: string, notePath?: string): HTMLElement => {
-    if (level > 6) flag('info', CODES.headingCapped, `Die Überschrift „${text}“ läge bei h${level} und bleibt bei h6.`, notePath);
+    if (level > 6) flag('info', CODES.headingCapped, 'one', [text, level], notePath);
     const h = doc.createElement(`h${Math.min(6, level)}`);
     h.textContent = text;
     return h;
