@@ -1,10 +1,10 @@
 {
   "sources": {
     "obsidian-kit": {
-      "ref": "0.106.0"
+      "ref": "0.109.0"
     },
     "code-kit": {
-      "ref": "0.88.0"
+      "ref": "0.89.0"
     }
   },
   "targets": [
@@ -45,7 +45,9 @@
         "screen-document",
         "anchor-marks",
         "css-rules",
-        "page-search"
+        "page-search",
+        "ensure-dir",
+        "bytes-equal"
       ]
     },
     {

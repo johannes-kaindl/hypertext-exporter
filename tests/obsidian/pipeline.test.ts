@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { beforeAll, describe, expect, it } from 'vitest';
 import { CODES } from '../../src/core/finding-codes';
+import { resultJson } from '../../src/core/result-file';
 import type { ExportResult, ExportScope, Finding } from '../../src/core/types';
 import { writeExport } from '../../src/obsidian/output';
 import { checkExport, exportApi, runExport, scopeForEntry } from '../../src/obsidian/pipeline';
@@ -74,17 +75,43 @@ describe('runExport: Fehler halten den Lauf an', () => {
     expect(result.findings.find((f) => f.code === CODES.finalForbidden)?.severity).toBe('error');
   });
 
-  it('ein Befund des zweiten Schutzdurchgangs (final.guard, Mutation-XSS aus dem Review) ergibt ok false und keine Seite', async () => {
-    const { host, deps } = small({ 'a/bericht.md': NOTE });
-    const draw = (async (_opts: unknown, use: (n: { root: HTMLElement; findings: never[] }) => unknown) => {
+  /** Ein Zeichner, der statt des gerenderten Baums einen festen Text liefert (der Zeichner von Obsidian läuft im Test nicht). */
+  const drawing = (html: string, deps: { render?: unknown }): NonNullable<typeof deps.render> => ({
+    draw: (async (_opts: unknown, use: (n: { root: HTMLElement; findings: never[] }) => unknown) => {
       const root = document.createElement('div');
-      root.innerHTML = '<math><mtext><table><mglyph><style><img src=x onerror="document.title=1">';
+      root.innerHTML = html;
       return use({ root, findings: [] });
-    }) as unknown as NonNullable<typeof deps.render>['draw'];
-    const result = await runExport(host, { kind: 'note', entryPath: 'a/bericht.md' }, fakeRun(), { ...deps, render: { draw } });
+    }) as unknown,
+  });
+  const MXSS_ONE = '<math><mtext><table><mglyph><style><img src=x onerror="document.title=1">';
+  // Dreifach verschachtelt (Review Etappe 10, Runde 2): der Rundlauf des Kits findet in drei Runden keinen festen Punkt und leert die Wurzel.
+  const MXSS_THREE = '<p>SURVIVOR</p>' + '<math><mtext><table><mglyph><style>'.repeat(3) + '<img src=x onerror="document.title=1">';
+
+  it('Mutation-XSS aus dem Review (einfach verschachtelt): der Schutzdurchgang des Kits macht den Baum stabil, die Seite trägt kein Ereignis-Attribut, ein Hinweis guard.reparse als warning', async () => {
+    const { host, deps } = small({ 'a/bericht.md': NOTE });
+    const result = await runExport(host, { kind: 'note', entryPath: 'a/bericht.md' }, fakeRun(), { ...deps, render: drawing(MXSS_ONE, deps) } as typeof deps);
+    expect(result.ok).toBe(true);
+    expect(parse(result.html ?? '').querySelectorAll('[onerror]')).toHaveLength(0);
+    expect(result.html).not.toMatch(/onerror/);
+    const reparse = result.findings.filter((f) => f.code === CODES.guardReparse);
+    expect(reparse).toHaveLength(1);
+    expect(reparse[0]).toMatchObject({ severity: 'warning', notePath: 'a/bericht.md' });
+    expect(result.findings.some((f) => f.code === CODES.finalGuard)).toBe(false);
+  });
+
+  it('Mutation-XSS dreifach verschachtelt: guard.reparse als error mit Notizpfad (die Notiz ist nicht übernommen), ok false, keine Seite', async () => {
+    const { host, deps } = small({ 'a/bericht.md': NOTE });
+    const result = await runExport(host, { kind: 'note', entryPath: 'a/bericht.md' }, fakeRun(), { ...deps, render: drawing(MXSS_THREE, deps) } as typeof deps);
     expect(result.ok).toBe(false);
     expect(result.html).toBeUndefined();
-    expect(result.findings.find((f) => f.code === CODES.finalGuard)?.severity).toBe('error');
+    const reparse = result.findings.filter((f) => f.code === CODES.guardReparse);
+    expect(reparse).toHaveLength(1);
+    expect(reparse[0]).toMatchObject({ severity: 'error', notePath: 'a/bericht.md' });
+    expect(reparse[0]?.message).toContain('nicht übernommen');
+    // die Ergebnisdatei trägt Code, Pfad und Satz
+    const json = JSON.parse(resultJson(result, null)) as { ok: boolean; findings: Array<{ code: string; notePath?: string; message: string }> };
+    expect(json.ok).toBe(false);
+    expect(json.findings.find((f) => f.code === 'guard.reparse')).toMatchObject({ notePath: 'a/bericht.md', severity: 'error' });
   });
 
   it('eine doppelte Marke auf der Seite (mark.duplicate) hält den Lauf ebenso an', async () => {

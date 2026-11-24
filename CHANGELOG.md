@@ -25,6 +25,7 @@ All notable changes to this project are documented here. The format follows
 ### Security
 
 - Text from a note does not become a program in the page: Obsidian's renderer, then a protection pass of the plugin (scripts, event attributes, `javascript:` targets, frames, forms, `<base>`), then a content security policy with checksums, `default-src 'none'`.
+- The protection pass reads the tree of each note again until it is stable (code-kit 0.89.0): a note whose content does not settle after three rounds is not taken over and stops the run with `guard.reparse` and the path of the note; links in the body, `<meta http-equiv>`, `name` on images, fixed or sticky positions and popover attributes are removed.
 - A second protection pass runs on the finished page read back from its text; if it still finds active content, nothing is written.
 - The finished page is checked for `app://`, `capacitor://`, `file://` and the path of the vault; a hit stops the run.
 - Raw frames in note text are replaced before drawing; the recipe switch `blocks` decides which code blocks other plugins may draw.

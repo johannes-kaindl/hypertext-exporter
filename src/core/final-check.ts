@@ -117,6 +117,7 @@ const GUARD_KIND_LABEL: Record<ExportGuardFinding['kind'], string> = {
   declaration: 'Stilangabe',
   svg: 'Zeichnung',
   comment: 'Kommentar',
+  reparse: 'Baum, der sich beim erneuten Lesen änderte',
 };
 
 /**

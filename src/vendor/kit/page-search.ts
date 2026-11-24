@@ -1,4 +1,4 @@
-// vendored from code-kit@0.88.0, src/ts/pure/page-search.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
+// vendored from code-kit@0.89.0, src/ts/pure/page-search.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
 // Origin: new in code-kit (Welle 37, order 18 of the hypertext-exporter plan, spec 10.5 and 10.14). First consumer: hypertext-exporter, whose stand-alone page has `script-src`
 // with one digest and no `fetch` (a `file://` page cannot fetch), so search and the fold helpers have to be ONE embedded script that reads the page it sits in.
 // Semantics follow `matchByQuery` of `slash-query` (every word of the query must occur, the comparison key is case- and composition-insensitive), the key itself is `foldCase`.

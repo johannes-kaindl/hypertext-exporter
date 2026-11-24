@@ -1,4 +1,4 @@
-// vendored from obsidian-kit@0.106.0, src/pure/export-prepare.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
+// vendored from obsidian-kit@0.109.0, src/pure/export-prepare.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
 // export-prepare.ts — Notizkörper vor `MarkdownRenderer.render` für einen Export vorbereiten: rohe Rahmen ersetzen, Codeblöcke nach Stellung herausnehmen, Inline-Abfragen brechen. Kein `obsidian`-Import.
 //
 // Warum hier und nicht in code-kit (erste Frage aus AGENTS.md): der Vertrag trägt Obsidian-Annahmen, die code-kit nicht kennt: `app:`-, relative und `file:`-Ziele eines rohen Rahmens öffnen in Obsidian 1.15.1 einen Fehlerdialog des
@@ -58,7 +58,7 @@ export interface ExportPrepareResult {
   markdown: string;
   /** Die herausgenommenen Blöcke in Dokumentreihenfolge; der Platzhalter `i` gehört zu `codes[i]`. */
   codes: PreparedCode[];
-  /** Wie viele Rahmen-Tags ersetzt oder entfernt wurden (öffnende und schließende). */
+  /** Wie viele Rahmen ersetzt wurden: je öffnende Marke einer (`<iframe></iframe>` ergibt 1, `<iframe src=x/>` und ein nie geschlossenes `<iframe src=x>` ebenso); schließende Marken werden entfernt, aber nicht gezählt. Bis 0.107.0 zählte die Zahl öffnende und schließende Marken zusammen (ein Rahmen ergab 2). */
   frames: number;
   /** Wie viele Inline-Abfragen gebrochen wurden. */
   inlineQueries: number;
@@ -172,7 +172,7 @@ function cleanProse(s: string, frameText: (tag: string) => string, prefixes: rea
       const nameEnd = m.index + m[0].length;
       const end = tagEnd(part, m.index, nameEnd);
       res += part.slice(at, m.index) + (m[1] === "/" ? "" : frameText((m[2] ?? "").toLowerCase()));
-      count.frames += 1;
+      if (m[1] !== "/") count.frames += 1;   // nur Rahmen zählen (öffnende Marken): ein <iframe></iframe> ist EIN Rahmen, nicht zwei (bis 0.107.0 zählte das schließende Tag mit)
       at = end;
       FRAME_TAG.lastIndex = end;
     }

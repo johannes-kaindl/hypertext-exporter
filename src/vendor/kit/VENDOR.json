@@ -1,10 +1,10 @@
 {
   "source": "code-kit",
-  "version": "0.88.0",
-  "sha": "59c73be",
-  "vendored": "folder-scope.ts, rel-path.ts, name-order.ts, heading-title.ts, slug.ts, sha256.ts, data-url.ts, validate-input.ts, string-list.ts, run-state.ts, cooperative-yield.ts, timeout.ts, i18n.ts, format-bytes.ts, fold-case.ts, run-exclusive.ts, filename-policy.ts, safe-markdown.ts, error-message.ts, settings_schema.ts, num.ts, html-escape.ts, frontmatter-field.ts, fences.ts, filename-template.ts, rotation.ts, folder-tree.ts, csp.ts, field-template.ts, screen-document.ts, anchor-marks.ts, css-rules.ts, page-search.ts, svg-guard.ts, macrotask-pause.ts, anchor-check.ts, export-guard.ts, link-guard.ts, leave-tree.ts",
-  "obsidian_kit_version": "0.106.0",
-  "obsidian_kit_sha": "abb26f3",
+  "version": "0.89.0",
+  "sha": "4576daa",
+  "vendored": "folder-scope.ts, rel-path.ts, name-order.ts, heading-title.ts, slug.ts, sha256.ts, data-url.ts, validate-input.ts, string-list.ts, run-state.ts, cooperative-yield.ts, timeout.ts, i18n.ts, format-bytes.ts, fold-case.ts, run-exclusive.ts, filename-policy.ts, safe-markdown.ts, error-message.ts, settings_schema.ts, num.ts, html-escape.ts, frontmatter-field.ts, fences.ts, filename-template.ts, rotation.ts, folder-tree.ts, csp.ts, field-template.ts, screen-document.ts, anchor-marks.ts, css-rules.ts, page-search.ts, ensure-dir.ts, bytes-equal.ts, svg-guard.ts, macrotask-pause.ts, anchor-check.ts, export-guard.ts, link-guard.ts, leave-tree.ts",
+  "obsidian_kit_version": "0.109.0",
+  "obsidian_kit_sha": "a4caa5c",
   "obsidian_kit_vendored": "frontmatter.ts, mermaid-wait.ts, image-source.ts, filename-sanitizer-source.ts, export-fold.ts, export-freeze.ts, export-links.ts, output-target.ts, plugin-id.ts, vault-path.ts, export-prepare.ts, frontmatter-patch.ts, anchor-walk.ts, code-blocks.ts",
   "license": "AGPL-3.0-or-later"
 }

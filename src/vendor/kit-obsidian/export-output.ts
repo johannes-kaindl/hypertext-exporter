@@ -1,4 +1,4 @@
-// vendored from obsidian-kit@0.106.0, src/obsidian/export-output.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
+// vendored from obsidian-kit@0.109.0, src/obsidian/export-output.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
 // Ziel der Ausgabe, Schreiber (Welle 36, h2b, Bestellung 13 der Design-Linie hypertext; gehoben aus epub-exporter@e6f3a42 `src/obsidian/output.ts` `writeEpub`).
 //
 // Nimmt Bytes, einen Basisnamen und eines der vier Ziele (`OutputDestination`, reiner Teil in `src/pure/output-target.ts`) und schreibt:

@@ -1,4 +1,4 @@
-// vendored from obsidian-kit@0.106.0, src/obsidian/render-note.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
+// vendored from obsidian-kit@0.109.0, src/obsidian/render-note.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
 // render-note.ts — eine Notiz mit Obsidians Renderer in einen DOM-Baum holen, der VOLLSTÄNDIG gezeichnet ist: Host am Dokument, Frist, Mermaid-Wartezeit, Ruhe-Regel mit fester Obergrenze, Befunde statt Würfe.
 //
 // Warum es das gibt (Welle 36, Bestellung hypertext-exporter 1): drei Exporter rendern dieselbe Sache dreimal verschieden. epub-exporter (`deps.ts`) rendert in einen LOSEN Host ohne Frist, Letterhead im Vektor-Weg ebenso;
@@ -25,7 +25,7 @@
 // **Nur Notiztext, kein Modelltext.** Der Baustein rendert Notizen des Nutzers für einen Export, wie Paperize und epub-exporter, ohne Linkschutz (`dom-guard`). Text aus einem Modell oder einer fremden Quelle gehört in `renderMarkdownGuarded`;
 // im Dach steht die Stelle darum in `KEIN_TRAEGER` von `tools/linkschutz_check.py` (Entscheidung Kit-Master 2026-11-19, Welle 36).
 
-import { Component, MarkdownRenderer, type App } from "obsidian";
+import { Component, MarkdownRenderer, type App, type TFile } from "obsidian";
 import { realClock, type ClockPort } from "./clock";
 import { withTimeout } from "../kit/timeout";
 import { errorMessage } from "../kit/error-message";
@@ -37,6 +37,8 @@ export const RENDER_NOTE_SETTLE_QUIET_MS = 250;
 export const RENDER_NOTE_SETTLE_CEILING_MS = 4_000;
 export const RENDER_NOTE_SETTLE_POLL_MS = 50;
 export const RENDER_NOTE_WIDTH_PX = 800;
+/** Frist, bis der Metadaten-Zwischenspeicher eine Zielnotiz mit Abschnitts-Einbettung kennt (Vorgabe 5 000 ms). */
+export const RENDER_NOTE_CACHE_TIMEOUT_MS = 5_000;
 /** Verbraucher kopiert die Konstante wortgleich in seine `styles.css`. Die Lage ist der Vertrag: am Dokument, IM Sichtbereich, unsichtbar, mit fester Breite; nie außerhalb des Bildschirms (Bases zeichnet dort 0 Zeilen) und nie `display: none`. */
 export const RENDER_NOTE_CSS: string = `
 .okit-render-note-host { position: fixed; left: 0; top: 0; width: var(--okit-render-width, 800px); opacity: 0; pointer-events: none; z-index: -1; }
@@ -68,7 +70,12 @@ export type RenderNoteFinding =
   /** Das Fenster ist versteckt (`document.visibilityState === "hidden"`): es wurde nicht gezeichnet, der Host ist leer. */
   | { kind: "window-hidden" }
   /** Eine Einbettung hat kein Ziel (`mod-empty`, `mod-empty-attachment`); `target` ist ihr `src`. */
-  | { kind: "embed-missing"; target: string };
+  | { kind: "embed-missing"; target: string }
+  /** Eine Einbettung mit Abschnitt (`![[notiz#Abschnitt]]`) zeigt womöglich die ganze Notiz: der Metadaten-Zwischenspeicher kannte `target` (Pfad der Zielnotiz) nach `ms` noch nicht. Das Rendern lief trotzdem. */
+  | { kind: "metadata-not-ready"; target: string; ms: number };
+
+/** Was der Zwischenspeicher zu einer Zielnotiz weiß: `cache: null` = kein Eintrag ODER ein Eintrag, der nicht zum Dateistand passt (die Notiz wurde geändert, die Neuindizierung läuft noch; `isCacheEntryCurrent`), sonst der Eintrag; `embeds` sind die Links ihrer Einbettungen (für verschachtelte Abschnitts-Einbettungen). Eine Zielnotiz ohne Überschriften hat einen Eintrag und wartet nicht. */
+export interface NoteCacheState { path: string; cache: { embeds: string[] } | null }
 
 export interface RenderedNote {
   /** Der Host: hängt am Dokument, im Sichtbereich und unsichtbar, nur bis der Rückruf endet. */
@@ -85,6 +92,8 @@ export interface RenderNotePorts {
   observe: (host: HTMLElement, onChange: () => void) => () => void;
   /** `document.visibilityState` des Dokuments, in dem gezeichnet wird. */
   visibility: () => string;
+  /** Löst `linkpath` (leer = die Quellnotiz selbst) wie ein Link auf und liest den Zwischenspeicher-Eintrag; `null`, wenn die Datei nicht existiert (dann gibt es nichts zu warten, `embed-missing` meldet es). */
+  lookupNote: (linkpath: string, sourcePath: string) => NoteCacheState | null;
 }
 
 export interface RenderNoteSettleOptions { quietMs?: number; ceilingMs?: number; pollMs?: number }
@@ -105,6 +114,8 @@ export interface RenderNoteOptions {
   /** Erwartete Diagramme; Vorgabe die Zahl der mermaid-Fences im Text. */
   expectedMermaid?: number;
   settle?: RenderNoteSettleOptions;
+  /** Frist für das Warten auf den Metadaten-Zwischenspeicher je Zielnotiz einer Abschnitts-Einbettung, Vorgabe 5 000 ms; bei Ablauf Befund `metadata-not-ready`. */
+  cacheTimeoutMs?: number;
   /** Weitere Regeln für „noch nicht fertig“ (z. B. Platzhalter eines anderen Plugins); zusätzlich zu `RENDER_NOTE_PLACEHOLDERS`. */
   placeholderSelectors?: RenderNotePlaceholder[];
   /** Auch in einem versteckten Fenster zeichnen (Vorgabe `false`: Befund `window-hidden`, kein Zeichnen). */
@@ -116,6 +127,15 @@ function positive(v: number | undefined, fallback: number): number {
   return typeof v === "number" && Number.isFinite(v) && v >= 0 ? v : fallback;
 }
 
+/** Passt der Zwischenspeicher-Eintrag zum Dateistand? `entry` ist `metadataCache.fileCache[pfad]`: INTERNES Feld (nicht in `obsidian.d.ts`), gemessen 2026-11-24 (Obsidian 1.15.1, Pilot `render-abschnitt`): nach `vault.modify` trägt der Eintrag noch `mtime` und `size` der alten Fassung und die alten Überschriften, bis die Neuindizierung durch ist (11 ms später); danach gleichen `mtime` und `size` denen von `file.stat`.
+ *  Die öffentliche API nennt keinen Stand (`getFileCache` liefert die Überschriften, kein `mtime`; das Ereignis `changed` sagt nicht, ob eines aussteht). Rückfall, falls Obsidian das Feld entfernt: ohne lesbaren Eintrag (`undefined`, kein Objekt, `mtime`/`size` keine Zahlen) gilt der Eintrag als aktuell, also das Verhalten bis 0.108.0 (nur auf „kein Eintrag“ warten). */
+export function isCacheEntryCurrent(entry: unknown, stat: { mtime: number; size: number }): boolean {
+  if (typeof entry !== "object" || entry === null) return true;
+  const e = entry as { mtime?: unknown; size?: unknown };
+  if (typeof e.mtime !== "number" || typeof e.size !== "number") return true;
+  return e.mtime === stat.mtime && e.size === stat.size;
+}
+
 function defaultPorts(app: App, clock: ClockPort, doc: Document): RenderNotePorts {
   return {
     clock,
@@ -123,6 +143,13 @@ function defaultPorts(app: App, clock: ClockPort, doc: Document): RenderNotePort
     render: (markdown, host, sourcePath, component) => MarkdownRenderer.render(app, markdown, host, sourcePath, component as Component),
     createComponent: () => new Component(),
     visibility: () => doc.visibilityState,
+    lookupNote: (linkpath, sourcePath) => {
+      const file: TFile | null = linkpath === "" ? app.vault.getFileByPath(sourcePath) : app.metadataCache.getFirstLinkpathDest(linkpath, sourcePath);
+      if (!file) return null;
+      const cache = app.metadataCache.getFileCache(file);
+      const entry = (app.metadataCache as unknown as { fileCache?: Record<string, unknown> }).fileCache?.[file.path];
+      return { path: file.path, cache: cache && isCacheEntryCurrent(entry, file.stat) ? { embeds: (cache.embeds ?? []).map((e) => e.link) } : null };
+    },
     observe: (host, onChange) => {
       const Observer = (activeWindow as Window & typeof globalThis).MutationObserver;
       const obs = new Observer(onChange);
@@ -144,6 +171,41 @@ function countPlaceholders(host: HTMLElement, rules: readonly RenderNotePlacehol
   return n;
 }
 
+/** Die Linkpfade der Einbettungen mit Abschnitt oder Block in `text` (`![[notiz#Abschnitt]]`, `![[#Abschnitt]]` → ""), ohne Anzeigetext, ohne Doppelte. Nur diese zeigen die ganze Notiz, wenn der Zwischenspeicher die Überschriften noch nicht kennt. */
+export function sectionEmbedTargets(text: string): string[] {
+  const out: string[] = [];
+  for (const m of text.matchAll(/!\[\[([^\]\n|]*)(?:\|[^\]\n]*)?\]\]/g)) {
+    const link = m[1] ?? "";
+    const i = link.indexOf("#");
+    if (i < 0) continue;
+    const path = link.slice(0, i).trim();
+    if (!out.includes(path)) out.push(path);
+  }
+  return out;
+}
+
+/** Wartet, bis der Zwischenspeicher jede Zielnotiz einer Abschnitts-Einbettung kennt (auch verschachtelter, über deren `embeds`). Eine Datei, die es nicht gibt, und eine Notiz ohne die Überschrift warten NICHT: gewartet wird nur auf „kein Eintrag“. */
+async function waitForEmbedTargets(markdown: string, sourcePath: string, ports: RenderNotePorts, timeoutMs: number, pollMs: number, findings: RenderNoteFinding[]): Promise<void> {
+  const seen = new Set<string>();
+  const queue: Array<{ linkpath: string; from: string }> = sectionEmbedTargets(markdown).map((linkpath) => ({ linkpath, from: sourcePath }));
+  while (queue.length > 0) {
+    const { linkpath, from } = queue.shift()!;
+    const started = ports.clock.now();
+    let state = ports.lookupNote(linkpath, from);
+    while (state && !state.cache && ports.clock.now() - started < timeoutMs) {
+      await ports.sleep(pollMs);
+      state = ports.lookupNote(linkpath, from);
+    }
+    if (!state || seen.has(state.path)) continue;
+    seen.add(state.path);
+    if (!state.cache) { findings.push({ kind: "metadata-not-ready", target: state.path, ms: timeoutMs }); continue; }
+    for (const link of state.cache.embeds) {
+      const i = link.indexOf("#");
+      if (i >= 0) queue.push({ linkpath: link.slice(0, i).trim(), from: state.path });
+    }
+  }
+}
+
 /** Rendert `markdown` in einen Host am Dokument und ruft `use` mit dem fertigen Baum und den Befunden. Host und Component sind danach weg (auch wenn `use` wirft). Wirft nie wegen Frist oder Renderer-Fehler: das steht in `findings`. */
 export async function withRenderedNote<T>(opts: RenderNoteOptions, use: (note: RenderedNote) => T | Promise<T>): Promise<T> {
   const clock = opts.ports?.clock ?? realClock;
@@ -163,6 +225,7 @@ export async function withRenderedNote<T>(opts: RenderNoteOptions, use: (note: R
     const hidden = opts.drawWhenHidden !== true && ports.visibility() === "hidden";
     if (hidden) findings.push({ kind: "window-hidden" });
     else try {
+      await waitForEmbedTargets(opts.markdown, opts.sourcePath, ports, positive(opts.cacheTimeoutMs, RENDER_NOTE_CACHE_TIMEOUT_MS), Math.max(1, positive(opts.settle?.pollMs, RENDER_NOTE_SETTLE_POLL_MS)), findings);
       const r = await withTimeout(ports.render(opts.markdown, host, opts.sourcePath, comp), renderMs, clock);
       if (r.timedOut) findings.push({ kind: "render-timeout", ms: renderMs });
       else rendered = true;

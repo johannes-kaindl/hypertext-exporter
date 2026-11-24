@@ -1,4 +1,4 @@
-// vendored from code-kit@0.88.0, src/ts/pure/anchor-marks.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
+// vendored from code-kit@0.89.0, src/ts/pure/anchor-marks.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
 // Origin: new in code-kit (Welle 36, h1c, order 6 of the hypertext-exporter plan, spec 10.3 and 10.4; the part of the order that needs no DOM, the DOM runner that
 // sets the marks on Obsidian's rendered tree is written in obsidian-kit — decision of the kit master 2026-11-19). Measured before building: `slug` (`slugify`) writes
 // the slug and is used as it is; `heading-title` finds a note's first heading and gives no mark; `export-studio/src/ids.ts` was read for the umlaut and number edge

@@ -1,4 +1,4 @@
-// vendored from obsidian-kit@0.106.0, src/obsidian/replace-file-safely.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
+// vendored from obsidian-kit@0.109.0, src/obsidian/replace-file-safely.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
 // Eine Datei ersetzen, ohne sie zerstören zu können (Welle 36, h2b, Bestellung 13; gehoben aus `device-files.ts`, Welle 36, kp1b, Teil D).
 //
 // Messung (REGISTRY „Eine Datei ersetzen, ohne sie zerstören zu können“, gemessen an Obsidian 1.13.7): `adapter.writeBinary` kürzt das Ziel auf 0 Bytes, bevor es die ersten Bytes liefert, und `adapter.rename`
@@ -19,7 +19,8 @@
 import type { DataAdapter } from "obsidian";
 import { errorMessage } from "../kit/error-message";
 import { vaultDirname } from "../kit/vault-path";
-import { ensureDir } from "./file-snapshot";
+import { ensureDir } from "../kit/ensure-dir";
+import { bytesEqual } from "../kit/bytes-equal";
 
 /** Die Adapter-Aufrufe, die der Weg braucht. Ein Test gibt eine Fake-Platte hinein. */
 export type ReplaceFileAdapter = Pick<DataAdapter, "exists" | "mkdir" | "readBinary" | "writeBinary" | "remove" | "rename">;
@@ -30,12 +31,6 @@ function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
   const out = new ArrayBuffer(bytes.byteLength);
   new Uint8Array(out).set(bytes);
   return out;
-}
-
-function sameBytes(a: Uint8Array, b: Uint8Array): boolean {
-  if (a.byteLength !== b.byteLength) return false;
-  for (let i = 0; i < a.byteLength; i++) if (a[i] !== b[i]) return false;
-  return true;
 }
 
 /** Ein Aufruf, dessen Scheitern der Weg verschmerzt (Aufräumen, Zurückrollen). `await` im `try` fängt auch einen Adapter, der synchron wirft, statt eine Zusage abzulehnen. */
@@ -57,7 +52,7 @@ export async function replaceFileSafely(adapter: ReplaceFileAdapter, path: strin
     // 1. vollständig in .tmp schreiben und zurücklesen
     await adapter.writeBinary(tmp, toArrayBuffer(bytes));
     const back = new Uint8Array(await adapter.readBinary(tmp));
-    if (!sameBytes(back, bytes)) {
+    if (!bytesEqual(back, bytes)) {
       await quietly(() => adapter.remove(tmp));
       return { ok: false, message: "Die geschriebene Datei stimmt beim Zurücklesen nicht mit den Bytes überein." };
     }

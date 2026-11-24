@@ -1,4 +1,4 @@
-// vendored from code-kit@0.88.0, src/ts/web/svg-guard.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
+// vendored from code-kit@0.89.0, src/ts/web/svg-guard.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
 import { CSS_RISKY, CSS_RISKY_PLAIN, isLocalRef, normalizeUrlRef, trimUrlLikeBrowser } from "./safe-markdown";
 import { cssFragmentIds, decodeFragmentId, parseCssDeclarations, parseCssRules, type CssRule } from "./css-rules";
 import { errorMessage } from "./error-message";
@@ -298,8 +298,8 @@ function isFragmentUrl(body: string): boolean {
  *  (no backslash; a backslash is refused before this scan decides anything). Here a quoted body is cut at the first `)` or `(`, and a call needs its `)`; `readCssUrls` ends a quoted body at its
  *  closing quote. (1) A string that is not closed: allowed here (up to the first `)`), refused there. (2) `(` inside a closed string, and (3) no `)` after a closed string: refused here,
  *  allowed there. (4) `)` inside a closed string, and (5) text between the closing quote and `)`: both allow, and the `rest` differs. (6) `readCssUrls` skips what JavaScript calls white
- *  space in front of the body (U+00A0, U+FEFF, U+2028 …), CSS and the URL parser do not: `url(NBSP#a)` is no fragment to a browser, it is refused here and allowed there. So the guard
- *  does not switch to `readCssUrls`: that would loosen the verdict in (2), (3) and (6). Case (6) is a defect of `readCssUrls`, not of this scan. */
+ *  space in front of the body (U+00A0, U+FEFF, U+2028 …), CSS and the URL parser do not: `url(NBSP#a)` is no fragment to a browser, it is refused here and allowed there **(fixed in 0.89.0: `readCssUrls` refuses it now too, both readers agree; the case stays in the test as its regression test)**. So the guard
+ *  does not switch to `readCssUrls`: that would loosen the verdict in (2) and (3) (and did in (6), before the fix). Case (6) was a defect of `readCssUrls`, not of this scan. */
 function scanUrlCalls(text: string): { loose: boolean; rest: string } {
   let loose = false;
   let rest = "";

@@ -5,7 +5,7 @@ import { parseLinktext, stripHeading, type App, type TFile } from 'obsidian';
 import { CODES } from '../core/finding-codes';
 import type { Finding, Recipe, RunControl, SetNote } from '../core/types';
 import { prepareExportMarkdown } from '../vendor/kit/export-prepare';
-import { guardExportTree, type ExportGuardFinding } from '../vendor/kit/export-guard';
+import { guardExportTree, MAX_REPARSE_ROUNDS, type ExportGuardFinding } from '../vendor/kit/export-guard';
 import { freezeRenderedDom, type ExportFreezeFinding, type ExportFreezePorts } from '../vendor/kit/export-freeze';
 import { RENDER_NOTE_CSS, withRenderedNote, type RenderNoteFinding, type RenderNotePorts } from '../vendor/kit-obsidian/render-note';
 
@@ -58,6 +58,9 @@ export function translateRenderFinding(f: RenderNoteFinding, notePath: string): 
       };
     case 'window-hidden':
       return { severity: 'error', code: CODES.renderHiddenWindow, message: assertWindowVisible({ visibilityState: 'hidden' })?.message ?? '', notePath };
+    case 'metadata-not-ready':
+      // Das Zeichnen lief trotzdem: eine Abschnitts-Einbettung kann die ganze Notiz zeigen, die Seite ist vollständig, aber vielleicht nicht, was die Notiz meint.
+      return { severity: 'warning', code: CODES.renderMetadataNotReady, message: `Obsidian hatte die eingebettete Notiz ${f.target} nach ${f.ms} ms noch nicht indiziert; ein eingebetteter Abschnitt von ihr zeigt vielleicht die ganze Notiz`, notePath };
     case 'embed-missing':
       return { severity: 'warning', code: CODES.embedMissing, message: `Einbettung ohne Ziel: ${f.target}`, notePath };
   }
@@ -83,10 +86,11 @@ const GUARD_KIND_TEXT: Record<ExportGuardFinding['kind'], string> = {
   declaration: 'Stilangaben mit Ladeziel',
   svg: 'Zeichnungen (SVG), die der Prüfer ablehnte',
   comment: 'Kommentare, die sich selbst beenden könnten',
+  reparse: 'Bäume, die sich beim erneuten Lesen änderten',
 };
 
 /** Kit-Befunde des Schutzdurchgangs, je Art zu einem `guard.removed` mit Zahl zusammengefasst (sonst wüchse die Befundliste mit jedem `onclick`). */
-export function translateGuardFindings(found: readonly ExportGuardFinding[], notePath: string): Finding[] {
+export function translateGuardFindings(found: readonly ExportGuardFinding[], notePath: string, rootEmptied = false): Finding[] {
   const order: ExportGuardFinding['kind'][] = ['element', 'attribute', 'declaration', 'svg', 'comment'];
   const out: Finding[] = [];
   for (const kind of order) {
@@ -106,6 +110,13 @@ export function translateGuardFindings(found: readonly ExportGuardFinding[], not
       notePath,
     });
   }
+  // `reparse` (Kit 0.89.0: der Baum ergab beim erneuten Lesen einen anderen) wird nicht gezählt, sondern einzeln gemeldet: `error`, wenn der Durchgang die Wurzel nach seinen Runden ganz geleert hat
+  // (die Notiz ist nicht übernommen), sonst `warning` (die Notiz steht in der Form, die ein Browser aus ihrem Text liest).
+  if (found.some((f) => f.kind === 'reparse')) {
+    out.push(rootEmptied
+      ? { severity: 'error', code: CODES.guardReparse, message: `Die Notiz wurde nicht übernommen: ihr Inhalt wurde nach ${MAX_REPARSE_ROUNDS} Runden erneuten Lesens nicht stabil, deshalb wurde alles entfernt`, notePath }
+      : { severity: 'warning', code: CODES.guardReparse, message: 'Der Inhalt der Notiz änderte sich beim erneuten Lesen seines Textes. Er steht in der Form, die ein Browser daraus liest, und kann von der Notiz abweichen', notePath });
+  }
   return out;
 }
 
@@ -114,7 +125,10 @@ export function translateGuardFindings(found: readonly ExportGuardFinding[], not
  * Der Kit-Durchgang verlangt einen Baum ohne Fenster; `root` ist der losgelöste Behälter, nicht der Host des Zeichners.
  */
 function protectTree(root: HTMLElement, note: SetNote): Finding[] {
-  return translateGuardFindings(guardExportTree(root), note.path);
+  const hadContent = root.childNodes.length > 0;
+  const found = guardExportTree(root);
+  // Eine Wurzel, die der Durchgang nach seinen Runden ganz geleert hat, ist nicht von einer Notiz zu unterscheiden, die er leer vorfand; deshalb nur mit Inhalt davor und einem `reparse`.
+  return translateGuardFindings(found, note.path, hadContent && root.childNodes.length === 0);
 }
 
 /** Alle Textknoten unter `node` in Dokumentreihenfolge (ohne `document`, damit der Baum auch losgelöst durchsucht wird). */
@@ -132,7 +146,7 @@ function textNodes(node: Node, out: Text[] = []): Text[] {
  * `<pre><code class="language-x">` in den gezeichneten Baum zurück (Text über `textContent`, vom DOM maskiert) und meldet einen Platzhalter, den es im Baum nicht findet.
  */
 function prepareMarkdown(note: SetNote, recipe: Recipe): { markdown: string; frames: ReadonlyMap<string, number>; restore: (root: HTMLElement) => Finding[] } {
-  // `prepared.frames` zählt öffnende und schließende Marken zusammen (ein Rahmen ergäbe 2); gezählt wird deshalb, wie oft ein Rahmen ersetzt wird: der Ersatztext wird nur für öffnende Marken verlangt.
+  // `prepared.frames` zählt die Rahmen (seit obsidian-kit 0.108.0 je öffnender Marke einen); der Befund nennt aber auch die Namen, deshalb zählt der Ersatztext je Name mit, der nur für öffnende Marken verlangt wird.
   const frames = new Map<string, number>();
   const prepared = prepareExportMarkdown(note.body, {
     codeBlocks: recipe.blocks,

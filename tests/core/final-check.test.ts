@@ -135,7 +135,7 @@ describe('finalGuard (zweiter Schutzdurchgang auf dem neu gelesenen Text der Sei
   const MXSS = '<math><mtext><table><mglyph><style><img src=x onerror="document.title=1">';
   const parse = (html: string): Document => new DOMParser().parseFromString(html, 'text/html');
 
-  /** Die Nutzlast des Reviews: der erste Durchgang (am Baum) lässt sie stehen, erst der Text der Seite wird beim Lesen zu einem `img` mit Ereignis-Attribut. */
+  /** Die Nutzlast des Reviews, wie der erste Durchgang sie sieht: ein Baum aus dem Zeichner, danach der Text der Seite. */
   function serializedPage(payload: string): { firstPass: number; html: string } {
     const doc = parse(`<!doctype html><body><div id="r">${payload}</div>`);
     const root = doc.getElementById('r') as HTMLElement;
@@ -143,18 +143,25 @@ describe('finalGuard (zweiter Schutzdurchgang auf dem neu gelesenen Text der Sei
     return { firstPass, html: `<!doctype html><html><body><nav></nav><main id="inhalt">${root.innerHTML}</main></body></html>` };
   }
 
-  it('Voraussetzung: der erste Durchgang meldet die Mutation-XSS-Nutzlast nicht, die neu gelesene Seite trägt das Ereignis-Attribut', () => {
+  it('seit code-kit 0.89.0 liest der erste Durchgang den Baum noch einmal: die Nutzlast ist gemeldet, die Seite trägt kein Ereignis-Attribut', () => {
     const { firstPass, html } = serializedPage(MXSS);
-    expect(firstPass).toBe(0);
-    expect(parse(html).querySelectorAll('[onerror]').length).toBe(1);
+    expect(firstPass).toBeGreaterThan(0);
+    expect(parse(html).querySelectorAll('[onerror]').length).toBe(0);
   });
 
-  it('meldet, was der erste Durchgang durchließ, als error final.guard (und nennt Art und Element)', () => {
-    const { html } = serializedPage(MXSS);
+  it('meldet einen Text der Seite, den erst das Lesen zu einem Ereignis-Attribut macht, als error final.guard (zweite Linie, auch wenn der erste Durchgang sie nicht kannte)', () => {
+    // Die Nutzlast ungeschützt in den Text der Seite: so sähe sie ein Plugin mit einem älteren Kit.
+    const html = `<!doctype html><html><body><nav></nav><main id="inhalt">${MXSS}</main></body></html>`;
+    expect(parse(html).querySelectorAll('[onerror]').length).toBe(0);
     const out = finalGuard(parse(html));
     expect(out.map((f) => `${f.severity}:${f.code}`)).toEqual(['error:final.guard']);
-    expect(out[0]?.message).toContain('onerror');
-    expect(out[0]?.message).toContain('img');
+    expect(out[0]?.message).toContain('#tree');
+  });
+
+  it('meldet, was ein Baum mit gelesenem Ereignis-Attribut trägt, als error final.guard (und nennt Element und Attribut)', () => {
+    const out = finalGuard(parse('<!doctype html><body><main id="inhalt"><img src="x" onerror="document.title=1"></main></body>'));
+    expect(out.map((f) => `${f.severity}:${f.code}`)).toEqual(['error:final.guard']);
+    expect(out[0]?.message).toContain('onerror an img');
   });
 
   it('meldet eine saubere Seite nicht (Gegenprobe), auch nicht mit Bild, Tabelle, Inline-SVG und eigenem Stil im Kopf', () => {

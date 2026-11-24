@@ -1,4 +1,4 @@
-// vendored from code-kit@0.88.0, src/ts/pure/folder-tree.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
+// vendored from code-kit@0.89.0, src/ts/pure/folder-tree.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
 // Origin: epub-exporter@5c2c2a5 src/core/folder-tree.ts (`buildBookTree`, `flattenPages`, `collectDirs`, `buildLevel`), lifted and changed (Welle 36, h1b,
 // order 5 of the hypertext-exporter design, spec sections 7.2, 10.3 and 14). The carrier stays as it is until the breadth moves it; its tests are copied into
 // tests/folder-tree.test.ts behind a thin adapter (the carrier's `FolderFileInput` becomes a frontmatter object, its `chapter` a `group`) and pass against this version.

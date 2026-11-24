@@ -100,6 +100,15 @@ describe('renderNote: Zeichnen über das Kit', () => {
     expect(out.findings[2]?.message).toContain('2 von 3');
   });
 
+  it('übersetzt metadata-not-ready (obsidian-kit 0.109.0) als warning mit Notizpfad und Zielnotiz; das Zeichnen läuft weiter', async () => {
+    const d = fakeDraw('<p>x</p>', [{ kind: 'metadata-not-ready', target: 'b/ziel.md', ms: 5000 }]);
+    const out = await renderNote(fakeApp({}), note, DEFAULT_RECIPE, run(), d.deps);
+    expect(out.findings.map((f) => [f.severity, f.code, f.notePath])).toEqual([['warning', CODES.renderMetadataNotReady, note.path]]);
+    expect(out.findings[0]?.message).toContain('b/ziel.md');
+    expect(out.findings[0]?.message).toContain('5000 ms');
+    expect(out.root.textContent).toBe('x');
+  });
+
   it('zeichnet nicht, wenn der Lauf abgebrochen ist', async () => {
     const d = fakeDraw('<p>x</p>');
     const out = await renderNote(fakeApp({}), note, DEFAULT_RECIPE, run(true), d.deps);

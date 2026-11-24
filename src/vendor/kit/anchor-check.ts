@@ -1,4 +1,4 @@
-// vendored from code-kit@0.88.0, src/ts/web/anchor-check.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
+// vendored from code-kit@0.89.0, src/ts/web/anchor-check.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
 // Origin: new in code-kit (Welle 36, h1c, order 6 of the hypertext-exporter plan, the "Nachtrag" of 2026-11-19; spec 10.4: "Jede Marke ist eindeutig, und jedes interne
 // Ziel existiert; beides prüft der Export am Ende und meldet Verstöße als Fehler"). Measured before building: no module in code-kit or obsidian-kit checks ids or
 // fragment links (`link-guard` reads the SCHEME of an `href` and cuts `id` from an inline `<svg>`; `svg-guard` has its own `fragmentIds` for one SVG file, order 24 lifts it).

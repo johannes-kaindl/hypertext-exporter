@@ -35,10 +35,12 @@ The result file is `<note name>.export.json`. It holds `ok`, `path` (the page, o
 | `render.placeholder-lost` | warning | A code block was lost while drawing and is missing from the page. |
 | `render.failed` | warning | A renderer reported an error. |
 | `render.mermaid-missing` | warning | Some Mermaid diagrams were not drawn. |
+| `render.metadata-not-ready` | warning | Obsidian had not indexed an embedded note after five seconds, so an embedded section of it may show the whole note. The note was drawn anyway; export again once Obsidian has finished indexing. |
 | `prepare.frame-replaced` | notice | A raw frame (`<iframe>`, `<object>`, `<embed>`, `<webview>`) in the note text was replaced by a text such as `[iframe]` before drawing. It is not on the page. |
 | `freeze.empty-block` | warning | A block stayed empty. |
 | `freeze.canvas-failed`, `freeze.canvas-blank` | warning | A canvas could not be turned into an image, or was drawn empty. |
 | `guard.removed` | notice, warning for SVG | The protection pass removed active content: a script, an event attribute, a `javascript:` target, a form, a frame. A rejected drawing is a warning because it is missing from the page. |
+| `guard.reparse` | error, warning | The protection pass read the text of a note a second time and the content came out differently, the sign of a crafted note. It is a warning when the note stays on the page in the form a browser reads from it. It is an error, with the path of the note, when the content did not settle after three rounds: the note was not taken over, all of its content was removed, and no page is written. |
 | `math.font-url` | notice | A maths font was not embedded; formulas use a fallback font. |
 
 ## Media and links
