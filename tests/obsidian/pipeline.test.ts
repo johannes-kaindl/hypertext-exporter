@@ -298,3 +298,21 @@ describe('exportApi.exportAndWait', () => {
     expect(out.findings.map((f) => f.code)).toContain(CODES.exportFailed);
   });
 });
+
+describe('runExport: Navigation', () => {
+  it('führt Einstieg, Gruppe und lose Notiz der obersten Ebene in der Reihenfolge der Seite, jede Marke trifft ihren Bereich', async () => {
+    const { host, deps } = small({
+      'a/e.md': '---\ntitle: Einstieg\n---\n\nText.\n',
+      'a/g/x.md': '---\ntitle: Innen\n---\n\nIn der Gruppe.\n',
+      'a/lose.md': '---\ntitle: Lose Notiz\n---\n\nOhne Gruppe.\n',
+    });
+    const result = await runExport(host, { kind: 'folder', folder: 'a', entryPath: 'a/e.md' }, fakeRun(), deps);
+    expect(result.ok).toBe(true);
+    const page = parse(result.html ?? '');
+    const links = Array.from(page.querySelectorAll('nav ul > li > a'));
+    expect(links.map((a) => a.textContent)).toEqual(['Einstieg', 'g', 'Lose Notiz']);
+    const main = page.querySelector('main');
+    const areas = Array.from(main?.querySelectorAll(':scope > section[id], :scope > details[id]') ?? []);
+    expect(links.map((a) => a.getAttribute('href'))).toEqual(areas.map((el) => `#${el.id}`));
+  });
+});

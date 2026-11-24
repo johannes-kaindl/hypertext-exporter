@@ -7,7 +7,7 @@ import { PAGE_TEXTS, type PageLang } from './page-texts';
 export interface PageInput {
   title: string;
   lang: PageLang;
-  /** Gruppen und Einstieg für die Navigation; `anchor` ist die Marke ohne `#`. */
+  /** Einstieg, Gruppen und lose Notizen der obersten Ebene für die Navigation, in der Reihenfolge der Seite; `anchor` ist die Marke ohne `#`. */
   toc: Array<{ anchor: string; title: string }>;
   /** Der fertige Inhalt (Kinder werden in `<main id="inhalt">` übernommen); wird nur gelesen, nie verändert. */
   body: HTMLElement;
