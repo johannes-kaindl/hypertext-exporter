@@ -14,11 +14,15 @@
  * Weitere Schalter:
  *   --list         Vertrag anzeigen
  *   --gegenprobe   schaltet das Plugin vor P1 ab; P1 muss dann rot sein (Beleg, dass der Punkt etwas misst)
+ *   --chrome-port  Port der headless Chrome-Instanz fuer P9 und P10 (Standard 9844; eigener Lock, nie 9222, nie der Port der Zweitinstanz)
  *
  * `--port` ist Pflicht (auch als `CDP_PORT` lesbar): ohne Angabe bricht der Treiber ab, statt auf die reguläre
  * Instanz (9222) zu greifen. Je Messlauf ein frischer Prozess.
  *
  * Bilanz in vier Zustaenden (`bilanz.ts`): gruen, rot, uebersprungen, nichts gemessen. `PUNKTE` ist der Nenner.
+ *
+ * Pruefpunkte P7 bis P10 (Live-Reste der Abnahme Etappe 5, `gui-smoke-live.ts`): rohes iframe (Satz 18), dritter Export nach fremder Mathe,
+ * Kaskade der MathJax-Blaetter gegen die Seite in Chrome, rohes details im Druck.
  *
  * Pruefpunkte P2 bis P6 (Task 13): sechs Befehle registriert, Export des Beispielordners ueber den Befehl, zweiter Lauf
  * byte-gleich, Abbruch bei Notiz 3 von 300, `Check HTML export` meldet gleich. Mit `--gegenprobe` laeuft nur P1 (rot erwartet).
@@ -38,12 +42,25 @@ import {
   closeExtraLeaves,
   istAbgebrochen,
   ladePluginNeu,
+  openNote,
   pollUntil,
+  reopenNote,
   requireVisible,
   type Cdp,
 } from "../../tools/obsidian-cdp/cdp.js";
+import { filterMathCss } from "../src/core/math-css.js";
 import { createBilanz, parseArgs, runDriver, Vorbedingung } from "../../tools/obsidian-cdp/bilanz.js";
 import { buildVault, stagingVaultDir } from "../../tools/obsidian-cdp/vault.js";
+import {
+  CHROME_PORT_STANDARD,
+  DRUCK_MESSUNG,
+  gedruckterText,
+  oeffneSeiteInChrome,
+  setzeMessStil,
+  stilMessung,
+  vergleicheStile,
+  type StilContainer,
+} from "./gui-smoke-live.js";
 
 const REPO_NAME = "hypertext-exporter";
 const PLUGIN_ID = "hypertext-exporter";
@@ -53,7 +70,7 @@ const VAULT_NAME = `${REPO_NAME}-smoke`;
 let PORT = 0;
 
 /** Soll-Liste (Nenner der Bilanz). */
-const PUNKTE = ["P1", "P2", "P3", "P4", "P5", "P6"] as const;
+const PUNKTE = ["P1", "P2", "P3", "P4", "P5", "P6", "P7", "P8", "P9", "P10", "P11"] as const;
 
 /** Alle Befehle des Plugins (UI-STANDARD §11, Bauplan Task 13 Step 2). */
 const BEFEHLE = ["export-folder", "export-current-note", "check-export", "open-export", "insert-recipe", "open-view"] as const;
@@ -71,6 +88,19 @@ const ABBRUCH_AB = 3;
 const REPO_ROOT = cwd();
 const FIXTURES_DIR = join(REPO_ROOT, "tests", "fixtures");
 
+/** Port der headless Chrome-Instanz fuer P9 und P10 (eigener Lock; nie 9222 und nie der Port der Zweitinstanz). */
+let CHROME_PORT = CHROME_PORT_STANDARD;
+/** Fremde Notiz mit Mathe ausserhalb der Menge (P8), im Staging-Vault angelegt. */
+const FREMD_NOTIZ = "ausserhalb/mathe-fremd.md";
+const FREMD_TEXT = String.raw`# Fremde Mathe
+
+Außerhalb der Menge: $\alpha + \beta \leq \Gamma$ und $\oint_C \hbar \nabla \cdot \vec{F}$.
+
+$$\sum_{k=1}^{n} \frac{\partial \Omega}{\partial \ell_k} \approx \int \Psi$$
+`;
+/** Notizen mit Formeln im Beispielordner und die Zahl ihrer `mjx-container` im Lesefenster (P9). */
+const MATHE_NOTIZEN: readonly (readonly [string, number])[] = [["beispiel/anhang/blöcke.md", 2], ["beispiel/kapitel/02 Größen und Maße.md", 1]];
+
 /** Version laut `manifest.json` des Repos; P1 vergleicht die geladene Version damit, nicht mit einer zweiten Zahl im Treiber. */
 function erwarteteVersion(): string {
   const manifest = JSON.parse(readFileSync(join(REPO_ROOT, "manifest.json"), "utf8")) as { version?: string };
@@ -86,6 +116,11 @@ function zeigeVertrag(): void {
   console.log("  P4   zweiter Lauf: Seite und Ergebnisdatei SHA-256-gleich zum ersten");
   console.log(`  P5   Abbruch bei Notiz >= 3 von ${ABBRUCH_NOTIZEN}: Knopf der Fortschrittsanzeige, danach keine neue HTML-Datei, vorhandene SHA-256-gleich, Ergebnisdatei ok:false`);
   console.log("  P6   Befehl check-export auf dem Beispiel meldet \"gleich\"");
+  console.log("  P7   Satz 18: Obsidians Lesefenster zeichnet das rohe iframe src=app://x (Kontrolle: Notizende gezeichnet); die exportierte Seite traegt kein iframe, der Befund-Weg wird benannt");
+  console.log("  P8   dritter Export nach dem Zeichnen einer fremden Mathe-Notiz (MathJax-Stile wachsen): Seite und Ergebnisdatei SHA-256-gleich zu den ersten beiden");
+  console.log(`  P9   Formelstile vollstaendig: berechnete Stile der MathJax-Elemente in Obsidian gegen die Seite als file:// in headless Chrome (Port ${CHROME_PORT}), Gegenprobe mit eingeschleuster Regel`);
+  console.log("  P10  Kaskade: dieselben Regeln aus dem Stylesheet von Obsidian, durch filterMathCss geordnet (ein Blatt, zwei Blaetter vertauscht), in die Seite gelegt: berechnete Stile gleich");
+  console.log("  P11  Druck: rohes details der Seite unter print: ::details-content sichtbar, Text im PDF (printToPDF, pdftotext), Gegenprobe mit versteckender Regel; Range.getBoundingClientRect nur mitgeschrieben");
 }
 
 /** Staging-Vault aus `tests/fixtures/` herstellen. `buildVault` erwartet `notes/` und `obsidian/`; die Notizen
@@ -124,7 +159,8 @@ interface PluginStand {
 }
 
 
-interface ErgebnisDatei { ok: boolean; path: string | null; errors: number; warnings: number; infos: number }
+interface ErgebnisBefund { severity: string; code: string; message: string; notePath?: string }
+interface ErgebnisDatei { ok: boolean; path: string | null; errors: number; warnings: number; infos: number; findings?: ErgebnisBefund[] }
 
 function befehl(id: string): string {
   return `${PLUGIN_ID}:${id}`;
@@ -214,6 +250,54 @@ async function legeAbbruchFallAn(cdp: Cdp): Promise<void> {
     await a.write(${JSON.stringify(ABBRUCH_HTML)}, "<!-- vorhandene Ausgabe, darf der Abbruch nicht aendern -->\\n");
     await a.write(${JSON.stringify(ABBRUCH_JSON)}, JSON.stringify({ ok: true, path: ${JSON.stringify(ABBRUCH_HTML)}, errors: 0, warnings: 0, infos: 0, findings: [] }) + "\\n");
     return true;
+  `);
+}
+
+/** Eine vorhandene Notiz im Lesemodus neu oeffnen (Pfade ohne Rücksicht auf die Unicode-Form: `ö` kann als ein oder zwei Zeichen im Dateinamen stehen). */
+async function oeffneLesemodus(cdp: Cdp, pfad: string): Promise<void> {
+  const ok = await cdp.evaluate<boolean>(`
+    const soll = ${JSON.stringify(pfad)}.normalize("NFC");
+    const file = app.vault.getFiles().find((f) => f.path.normalize("NFC") === soll);
+    if (!file) return false;
+    const alt = app.workspace.getMostRecentLeaf(app.workspace.rootSplit);
+    if (alt) alt.detach();
+    await new Promise((r) => setTimeout(r, 300));
+    const leaf = app.workspace.getLeaf(true);
+    await leaf.openFile(file, { state: { mode: "preview" } });
+    app.workspace.setActiveLeaf(leaf, { focus: true });
+    await new Promise((r) => setTimeout(r, 400));
+    return true;
+  `);
+  if (!ok) throw new Vorbedingung(`Notiz ${pfad} nicht gefunden`);
+}
+
+/** Zustand von `style#MJX-CHTML-styles`: Regeln im Stylesheet (CSSOM) gegen die Zeichen im Textinhalt des Elements. MathJax haengt neue Regeln per `insertRule` an; der Textinhalt waechst nicht mit. */
+interface MathStile { regeln: number; textZeichen: number }
+function mathStile(cdp: Cdp): Promise<MathStile> {
+  return cdp.evaluate<MathStile>(`
+    const el = [...document.querySelectorAll("style#MJX-CHTML-styles")];
+    return { regeln: el.reduce((n, e) => n + (e.sheet?.cssRules.length ?? 0), 0), textZeichen: el.reduce((n, e) => n + (e.textContent ?? "").length, 0) };
+  `);
+}
+
+/** Alle Regeln der MathJax-Stylesheets als Text (CSSOM), in der Reihenfolge des Stylesheets. */
+function mathRegeln(cdp: Cdp): Promise<string[]> {
+  return cdp.evaluate<string[]>(`return [...document.querySelectorAll("style#MJX-CHTML-styles")].flatMap((e) => [...(e.sheet?.cssRules ?? [])].map((r) => r.cssText));`);
+}
+
+/** Was Obsidians Renderer aus dem rohen `<iframe>` der Fixture macht: `anhang/blöcke.md` im Lesefenster, bis ans Ende gerollt (Abschnitte werden erst beim Rollen gezeichnet). */
+interface LesefensterBild { iframes: number; iframeHtml: string | null; details: number; ende: boolean }
+function zeichneLesefenster(cdp: Cdp): Promise<LesefensterBild> {
+  return cdp.evaluate<LesefensterBild>(`
+    const v = document.querySelector(".markdown-preview-view");
+    let ende = false;
+    for (let i = 0; i < 12 && !ende; i++) {
+      v.scrollTop = v.scrollHeight;
+      await new Promise((r) => setTimeout(r, 400));
+      ende = /Rohes Aufklappfeld/.test(v.textContent ?? "");
+    }
+    const ifr = v.querySelector("iframe");
+    return { iframes: v.querySelectorAll("iframe").length, iframeHtml: ifr ? ifr.outerHTML : null, details: v.querySelectorAll("details").length, ende };
   `);
 }
 
@@ -379,6 +463,165 @@ async function lauf(gegenprobe: boolean): Promise<void> {
       if (meldung === null) throw new Vorbedingung("check-export zeigte keine Meldung (60 s)");
       bilanz.record("P6", /same as a fresh run/.test(meldung), meldung);
     });
+
+    const seiteImVault = join(stagingVaultDir(VAULT_NAME), AUSGABE_HTML);
+
+    await bilanz.punkt("P7", async () => {
+      const html = await cdp.evaluate<string | null>(`
+        const a = app.vault.adapter;
+        return (await a.exists(${JSON.stringify(AUSGABE_HTML)})) ? await a.read(${JSON.stringify(AUSGABE_HTML)}) : null;
+      `);
+      const ergebnis = await liesJson(cdp, AUSGABE_JSON);
+      if (html === null || ergebnis === null) throw new Vorbedingung("keine exportierte Seite oder Ergebnisdatei (P3)");
+      const befunde = ergebnis.findings ?? [];
+      const seiteIframes = (html.match(/<iframe/gi) ?? []).length;
+      const platzhalter = (html.match(/\[iframe\]/g) ?? []).length;
+      const guard = befunde.filter((b) => b.code === "guard.removed");
+      const nenntIframe = befunde.filter((b) => /iframe/i.test(b.message));
+      // Obsidians Renderer, roh (ohne Vorbehandlung): dieselbe Notiz im Lesefenster; Kontrolle: das letzte Stück der Notiz (rohes details) wurde gezeichnet.
+      await oeffneLesemodus(cdp, "beispiel/anhang/blöcke.md");
+      const roh = await zeichneLesefenster(cdp);
+      if (!roh.ende) throw new Vorbedingung("Kontrolle: das Lesefenster zeichnete das Ende der Notiz nicht (rohes details fehlt)");
+      const weg =
+        roh.iframes === 0 ? "der Renderer entfernt das iframe schon beim Zeichnen"
+        : "der Renderer laesst das iframe stehen, die Vorbehandlung (export-prepare) ersetzt es vor dem Zeichnen";
+      const befundWeg = guard.length === 0 && nenntIframe.length === 0 ? "kein Befund fuer das iframe in der Ergebnisdatei" : `Befund: ${[...guard, ...nenntIframe].map((b) => `${b.code} ${b.message}`).join(" | ")}`;
+      const ok = seiteIframes === 0;
+      bilanz.record("P7", ok,
+        `roher Renderer (Lesefenster): ${roh.iframes} iframe${roh.iframeHtml ? ` ${roh.iframeHtml}` : ""} (Kontrolle: Ende der Notiz gezeichnet, details ${roh.details}) -> ${weg}; Seite: ${seiteIframes} iframe, Platzhalter "[iframe]" ${platzhalter}x; ` +
+        `guard.removed ${guard.length}x${guard.length ? ` (${guard.map((b) => b.message).join("; ")})` : ""}; ${befundWeg}; Befunde gesamt ${befunde.length}`);
+    });
+
+    await bilanz.punkt("P8", async () => {
+      if (seiteHash === null || jsonHash === null) throw new Vorbedingung("P3 hat keinen ersten Lauf geliefert");
+      const davor = await mathStile(cdp);
+      await openNote(cdp, FREMD_NOTIZ, FREMD_TEXT, "preview");
+      const gezeichnet = await pollUntil<number>(cdp, `
+        const n = document.querySelectorAll(".markdown-preview-view mjx-container").length;
+        return n >= 3 ? n : null;
+      `, 30_000, 250);
+      if (gezeichnet === null) throw new Vorbedingung("die fremde Notiz zeigte keine drei Formeln (30 s)");
+      await new Promise((r) => setTimeout(r, 600));
+      const danach = await mathStile(cdp);
+      if (danach.regeln <= davor.regeln) throw new Vorbedingung(`Kontrolle: die MathJax-Stile wuchsen nicht (${davor.regeln} -> ${danach.regeln} Regeln); der Punkt wuerde nichts messen`);
+      const vorher = await mtime(cdp, AUSGABE_JSON);
+      await oeffne(cdp, EINSTIEG);
+      await clearNotices(cdp);
+      if (!(await fuehreAus(cdp, "export-current-note"))) throw new Vorbedingung("export-current-note war nicht verfuegbar");
+      await warteAufNeuere(cdp, AUSGABE_JSON, vorher, "dritter Lauf");
+      const seite3 = await sha(cdp, AUSGABE_HTML);
+      const json3 = await sha(cdp, AUSGABE_JSON);
+      const nachStile = await mathStile(cdp);
+      bilanz.record("P8", seite3 === seiteHash && json3 === jsonHash,
+        `MathJax-Regeln im Stylesheet ${davor.regeln} -> ${danach.regeln} (nach dem Export ${nachStile.regeln}), Textinhalt des Style-Elements ${davor.textZeichen} -> ${danach.textZeichen} Zeichen, ${gezeichnet} Formeln der fremden Notiz; dritter Lauf: Seite ${seite3 === seiteHash ? "gleich" : "ABWEICHEND"} (${String(seite3).slice(0, 12)} gegen ${String(seiteHash).slice(0, 12)}), Ergebnisdatei ${json3 === jsonHash ? "gleich" : "ABWEICHEND"}`);
+    });
+
+    /** Berechnete Stile der Formeln in Obsidians Lesefenster (Original-Blaetter); Zeichen der Formeln der Seite und alle Regeln des Stylesheets. */
+    const messeInstanz = async (): Promise<{ container: StilContainer[]; regeln: string[] }> => {
+      const container: StilContainer[] = [];
+      for (const [pfad, erwartet] of MATHE_NOTIZEN) {
+        await oeffneLesemodus(cdp, pfad);
+        const da = await pollUntil<number>(cdp, `
+          const n = document.querySelectorAll(".markdown-preview-view mjx-container").length;
+          return n >= ${erwartet} ? n : null;
+        `, 30_000, 250);
+        if (da === null) throw new Vorbedingung(`${pfad}: weniger als ${erwartet} Formeln im Lesefenster (30 s)`);
+        await new Promise((r) => setTimeout(r, 600));
+        container.push(...(await cdp.evaluate<StilContainer[]>(stilMessung(".markdown-preview-view mjx-container"))));
+      }
+      return { container, regeln: await mathRegeln(cdp) };
+    };
+    const schleuseEin = (chrome: { cdp: Cdp }, css: string): Promise<void> => setzeMessStil(chrome.cdp, css);
+    const entferne = (chrome: { cdp: Cdp }): Promise<void> => setzeMessStil(chrome.cdp, "");
+    const zeigeAbweichungen = (v: ReturnType<typeof vergleicheStile>): string => {
+      const eig = Object.entries(v.nachEigenschaft).map(([n, e]) => `${n} ${e.n}x (${e.beispiele.map((b) => b.slice(0, 90)).join("; ")})`).join(" | ");
+      return `Container Obsidian ${v.containerA}, Seite ${v.containerB}, gepaart ${v.gepaart} (nur Obsidian ${v.nurA}, nur Seite ${v.nurB}); ${v.elemente} Elemente, ${v.werte} Werte, ${v.abweichungen} Abweichungen${eig ? `: ${eig}` : ""}; Breiten (Schrift und Umgebung, nicht gewertet) ${v.schriftbedingt}`;
+    };
+    const GEGENREGEL = "mjx-container, mjx-container * { font-size: 123% !important; vertical-align: top !important; }";
+    const CSS_TEILE = `
+      const c = [...document.querySelectorAll("mjx-container mjx-c")].map((e) => (e.getAttribute("class") ?? "").split(/\\s+/).map((k) => /^mjx-c([0-9A-Fa-f]+)$/.exec(k)?.[1]).filter(Boolean)).flat();
+      return [...new Set(c)];
+    `;
+    let formeln: { container: StilContainer[]; regeln: string[] } | null = null;
+
+    await bilanz.punkt("P9", async () => {
+      formeln = await messeInstanz();
+      const chrome = await oeffneSeiteInChrome(seiteImVault, CHROME_PORT);
+      try {
+        const v = vergleicheStile(formeln.container, await chrome.cdp.evaluate<StilContainer[]>(stilMessung("mjx-container")));
+        // Gegenprobe: eine eingeschleuste Regel muss der Vergleich als Abweichung sehen (sonst misst er nichts).
+        await schleuseEin(chrome, GEGENREGEL);
+        const kontrolle = vergleicheStile(formeln.container, await chrome.cdp.evaluate<StilContainer[]>(stilMessung("mjx-container")));
+        const text = `${chrome.version}; ${zeigeAbweichungen(v)}; Gegenprobe (eingeschleuste Regel): ${kontrolle.abweichungen} Abweichungen`;
+        if (v.gepaart === 0 || kontrolle.abweichungen <= v.abweichungen) throw new Vorbedingung(`Messung ungueltig: ${text}`);
+        bilanz.record("P9", v.abweichungen === 0 && v.nurA === 0 && v.nurB === 0, text);
+      } finally {
+        await chrome.stoppe();
+      }
+    });
+
+    await bilanz.punkt("P10", async () => {
+      if (formeln === null) throw new Vorbedingung("P9 hat die Formeln in Obsidian nicht gemessen");
+      const alle = formeln.regeln;
+      if (alle.length < 20) throw new Vorbedingung(`zu wenige MathJax-Regeln im Stylesheet (${alle.length})`);
+      const chrome = await oeffneSeiteInChrome(seiteImVault, CHROME_PORT);
+      try {
+        const benutzt = new Set(await chrome.cdp.evaluate<string[]>(CSS_TEILE));
+        const mitte = Math.floor(alle.length / 2);
+        const eins = filterMathCss([alle.join("\n")], benutzt);
+        // Zwei Blaetter, vertauscht uebergeben; ob die Ordnung nach Zeichenfolge sie umstellt, zeigt `umgestellt`.
+        const ersteHaelfte = alle.slice(0, mitte).join("\n");
+        const zweiteHaelfte = alle.slice(mitte).join("\n");
+        const zwei = filterMathCss([zweiteHaelfte, ersteHaelfte], benutzt);
+        const a1 = filterMathCss([ersteHaelfte], benutzt).css;
+        const a2 = filterMathCss([zweiteHaelfte], benutzt).css;
+        const umgestellt = a1 !== "" && a2 !== "" && zwei.css === `${a2}\n${a1}`;
+        const ergebnis: string[] = [];
+        let abweichungen = 0;
+        for (const [name, css] of [["ein Blatt", eins.css], ["zwei Blaetter", zwei.css]] as const) {
+          await schleuseEin(chrome, css);
+          const v = vergleicheStile(formeln.container, await chrome.cdp.evaluate<StilContainer[]>(stilMessung("mjx-container")));
+          await entferne(chrome);
+          abweichungen += v.abweichungen + v.nurA + v.nurB;
+          ergebnis.push(`${name} (${css.length} Zeichen): ${zeigeAbweichungen(v)}`);
+        }
+        await schleuseEin(chrome, `${eins.css}\n${GEGENREGEL}`);
+        const kontrolle = vergleicheStile(formeln.container, await chrome.cdp.evaluate<StilContainer[]>(stilMessung("mjx-container")));
+        const text = `${chrome.version}; ${alle.length} Regeln im Stylesheet, ${benutzt.size} benutzte Zeichen; ${ergebnis.join("; ")}; zwei Blaetter ${umgestellt ? "von der Ordnung umgestellt" : "in der Reihenfolge belassen"}; Gegenprobe: ${kontrolle.abweichungen} Abweichungen`;
+        if (kontrolle.abweichungen <= abweichungen / 2) throw new Vorbedingung(`Messung ungueltig (Gegenprobe wirkt nicht): ${text}`);
+        bilanz.record("P10", abweichungen === 0, text);
+      } finally {
+        await chrome.stoppe();
+      }
+    });
+
+    await bilanz.punkt("P11", async () => {
+      const chrome = await oeffneSeiteInChrome(seiteImVault, CHROME_PORT);
+      try {
+        interface Druck { fehlt?: string; medienDruck: boolean; eigenOffen: boolean; vorfahrenOffen: boolean[]; text: { w: number; h: number }; summary: { w: number; h: number }; inhalt: string; kinder: string[] }
+        const messe = async (medium: "screen" | "print"): Promise<Druck> => {
+          await chrome.cdp.send("Emulation.setEmulatedMedia", { media: medium });
+          const m = await chrome.cdp.evaluate<Druck>(DRUCK_MESSUNG);
+          if (m.fehlt) throw new Vorbedingung(`Fixture fehlt in der Seite: ${m.fehlt}`);
+          return m;
+        };
+        const zeige = (m: Druck): string => `Range ${m.text.w}x${m.text.h}, ::details-content ${m.inhalt}, eigenes details ${m.eigenOffen ? "offen" : "zu"}, Vorfahren ${m.vorfahrenOffen.map((o) => (o ? "offen" : "zu")).join("/") || "keine"}`;
+        const schirm = await messe("screen");
+        const druck = await messe("print");
+        if (!druck.medienDruck || schirm.medienDruck) throw new Vorbedingung(`Medienemulation wirkte nicht (print ${druck.medienDruck}, screen ${schirm.medienDruck})`);
+        const imPdf = (await gedruckterText(chrome.cdp)).includes("Dieses Feld bleibt, wie es ist.");
+        // Gegenprobe: eine Regel, die den Inhalt im Druck versteckt, muss den Text aus dem PDF nehmen (sonst misst das PDF nichts).
+        await schleuseEin(chrome, "@media print { details::details-content { content-visibility: hidden !important; } }");
+        const versteckt = (await gedruckterText(chrome.cdp)).includes("Dieses Feld bleibt, wie es ist.");
+        if (versteckt) throw new Vorbedingung("Gegenprobe: auch mit versteckender Regel steht der Text im PDF; die Messung unterscheidet nichts");
+        const sichtbar = imPdf && druck.inhalt === "visible";
+        bilanz.record("P11", sichtbar,
+          `${chrome.version}; Bildschirm: ${zeige(schirm)}; Druck: ${zeige(druck)}; Text im gedruckten PDF ${imPdf ? "ja" : "NEIN"}, mit versteckender Regel ${versteckt ? "ja" : "nein (Gegenprobe wirkt)"}; ` +
+          `Range.getBoundingClientRect trennt Bildschirm und Druck nicht (Bildschirm ${schirm.text.h}, Druck ${druck.text.h} hoch); Kinder des details: ${druck.kinder.join(",")}`);
+      } finally {
+        await chrome.stoppe();
+      }
+    });
   } finally {
     await zustand.schliesse();
     if (istAbgebrochen()) return;
@@ -402,6 +645,11 @@ async function main(): Promise<void> {
     throw new Error("--port <port> fehlt (oder CDP_PORT). Kein Default: 9222 ist die regulaere Instanz.");
   }
   PORT = Number(portText);
+  const chromePort = args.value("chrome-port") ?? env.HT_CHROME_PORT;
+  if (chromePort !== undefined && chromePort !== "") {
+    if (!Number.isInteger(Number(chromePort)) || Number(chromePort) === PORT || Number(chromePort) === 9222) throw new Error("--chrome-port muss eine ganze Zahl sein, nicht 9222 und nicht der Port der Zweitinstanz.");
+    CHROME_PORT = Number(chromePort);
+  }
 
   if (args.has("setup")) return setup();
 

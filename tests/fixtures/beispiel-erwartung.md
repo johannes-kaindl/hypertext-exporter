@@ -29,7 +29,7 @@ Die Befund-Codes stehen in `src/core/finding-codes.ts`.
 15. `![[fehlt.png]]` ergibt `media.not-embedded` und einen Hinweis `ht-media-missing` mit dem Dateinamen `fehlt.png`.
 16. Das Bild im Netz wird nicht geladen und ergibt `media.remote-skipped`.
 17. Das Feld `aufwand` fehlt in `02 Größen und Maße` und ergibt genau eine Warnung `field.missing`.
-18. Das rohe `<iframe src="app://x">` kommt in der Seite nicht vor und ergibt einen Hinweis `guard.removed`.
+18. Das rohe `<iframe src="app://x">` kommt in der Seite nicht vor; an seiner Stelle steht der Text `[iframe]` (die Vorbehandlung `export-prepare` ersetzt den Rahmen vor dem Zeichnen, Obsidians Lesefenster ließe ihn stehen und gäbe ihm `sandbox` mit `allow-scripts`), und es entsteht kein Befund: weder `guard.removed` noch ein anderer Code nennt den Rahmen. Gemessen 2026-11-24 mit P7 des GUI-Smokes; ob der Ersatz einen Hinweis bekommen soll, entscheidet der Master.
 19. Es gibt keinen Befund mit der Schwere `error`.
 
 ## Inhalt
