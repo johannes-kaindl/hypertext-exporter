@@ -160,7 +160,13 @@ export function structure(
     const isEntry = n === set.entry;
     const dropped = dropTitleHeading(root, isEntry ? [n.title, set.title] : [n.title]);
     if (dropped !== null) removedTitle.set(n.path, slugify(dropped, { fallback: EMPTY_SLUG }));
-    if (isEntry && recipe.fold.headingsFrom !== null) foldHeadingSections(root, foldPorts, { fromLevel: recipe.fold.headingsFrom });
+    if (isEntry && recipe.fold.headingsFrom !== null) {
+      // Der Fußnotenblock, den Obsidian ans Ende des Baums zeichnet, würde sonst im letzten gefalteten Abschnitt landen: abheben und hinter die Abschnitte setzen.
+      const footnoteBlocks = Array.from(root.querySelectorAll(':scope > section.footnotes'));
+      for (const block of footnoteBlocks) block.remove();
+      foldHeadingSections(root, foldPorts, { fromLevel: recipe.fold.headingsFrom });
+      root.append(...footnoteBlocks);
+    }
     markRenderedNote(root, createNoteMarks(markOf(n)), isEntry ? 2 : 3 + n.depth, (severity, code, message) => flag(severity, code, message, n.path));
   }
 

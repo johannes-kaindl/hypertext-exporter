@@ -2,6 +2,7 @@
 import { describe, expect, it } from 'vitest';
 import { structure } from '../../src/core/structure';
 import { CODES } from '../../src/core/finding-codes';
+import { checkAnchors } from '../../src/vendor/kit/anchor-check';
 import type { SetGroup, SetNote } from '../../src/core/types';
 import { FOLDER, group, makeSet, note, noExtras, recipe, resolver, tree } from './structure-helpers';
 
@@ -180,6 +181,39 @@ describe('Überschriftsabschnitte der Einstiegsnotiz (fold.headings_from)', () =
     const body = run(3);
     expect(body.querySelectorAll('section > h2')).toHaveLength(2);
     expect(body.querySelectorAll('details[data-export-fold="section"]')).toHaveLength(1);
+  });
+});
+
+describe('Fußnotenblock des gefalteten Einstiegs', () => {
+  const entry = note(`${FOLDER}/e.md`, 'Einstieg');
+  const ref = '<sup class="footnote-ref" data-footnote-id="fnref-1-aaaaaaaaaaaaaaaa" id="fnref-1-aaaaaaaaaaaaaaaa"><a class="footnote-link" href="#fn-1-aaaaaaaaaaaaaaaa">[1]</a></sup>';
+  const block = '<section class="footnotes"><ol><li data-footnote-id="fn-1-aaaaaaaaaaaaaaaa" id="fn-1-aaaaaaaaaaaaaaaa"><p>Die Fußnote. <a class="footnote-backref" href="#fnref-1-aaaaaaaaaaaaaaaa">↩</a></p></li></ol></section>';
+  const html = `<p>Vorspann</p><h2>Eins</h2><p>a${ref}</p><h2>Zwei</h2><p>c</p>${block}`;
+  const run = () => structure(makeSet(entry, []), new Map([[entry.path, tree(html)]]), recipe({ fold: { headingsFrom: 2, linkedSummary: false } }), none.resolve, noExtras, FOLDER);
+
+  it('steht am Ende des Einstiegs, außerhalb aller Abschnitte (nicht im letzten gefalteten)', () => {
+    const body = run().body;
+    const notes = body.querySelectorAll('section.footnotes');
+    expect(notes).toHaveLength(1);
+    expect(notes[0]?.closest('details')).toBeNull();
+    expect(notes[0]?.parentElement?.matches('section[data-ht-note]')).toBe(true);
+    expect(notes[0]?.parentElement?.lastElementChild).toBe(notes[0]);
+    expect(body.querySelectorAll('details[data-export-fold="section"]')).toHaveLength(2);
+  });
+
+  it('die Sprünge zu den Fußnoten und zurück bleiben gültig', () => {
+    const body = run().body;
+    expect(checkAnchors(body)).toEqual([]);
+    const link = body.querySelector('a.footnote-link');
+    const target = body.querySelector(`[id="${(link?.getAttribute('href') ?? '#').slice(1)}"]`);
+    expect(target?.textContent).toContain('Die Fußnote');
+    const back = body.querySelector('a.footnote-backref');
+    expect(body.querySelector(`[id="${(back?.getAttribute('href') ?? '#').slice(1)}"]`)?.classList.contains('footnote-ref')).toBe(true);
+  });
+
+  it('ohne Faltung bleibt der Block, wo er war: am Ende des Einstiegs', () => {
+    const body = structure(makeSet(entry, []), new Map([[entry.path, tree(html)]]), recipe(), none.resolve, noExtras, FOLDER).body;
+    expect(body.querySelector('section[data-ht-note]')?.lastElementChild?.matches('section.footnotes')).toBe(true);
   });
 });
 
