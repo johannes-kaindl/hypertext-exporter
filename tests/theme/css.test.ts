@@ -115,6 +115,11 @@ describe("Grundgestaltung", () => {
     expect(css).toMatch(/details:not\(\[open\]\) > summary::before/);
   });
 
+  it("hält ein position:fixed aus dem Notizinhalt im Bereich des Inhalts (contain: paint auf main, im Druck zurückgenommen)", () => {
+    expect(flat(beforePrint)).toMatch(/(^| )main \{[^}]*contain: paint;/);
+    expect(flat(printBlock)).toMatch(/main \{[^}]*contain: none;/);
+  });
+
   it("sorgt am Handy für eine Spalte ohne waagerechtes Scrollen", () => {
     const css = flat(BASE_CSS);
     expect(css).toMatch(/img, video, svg \{ max-width: 100%;/);

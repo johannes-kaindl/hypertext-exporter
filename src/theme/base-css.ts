@@ -48,6 +48,12 @@ nav {
   padding: var(--ht-space) calc(var(--ht-space) * 2);
 }
 
+/* Inhalt der Notizen ist fremder Text: ein style-Attribut darf Layout setzen (style-src-attr), aber ein position:fixed mit inset:0 soll keinen Klick
+   außerhalb des Inhaltsbereichs fangen (Navigation, Werkzeuge). contain: paint macht main zum Bezugsrahmen für fixed und beschneidet auf seine Fläche. */
+main {
+  contain: paint;
+}
+
 nav {
   border-bottom: 1px solid var(--ht-border);
 }
@@ -453,6 +459,7 @@ const PRINT = String.raw`
   main {
     max-width: none;
     padding: 0;
+    contain: none;
   }
 
   a[href^="http"]::after {
