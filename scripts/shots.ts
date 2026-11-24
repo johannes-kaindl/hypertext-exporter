@@ -35,6 +35,7 @@ import {
   ladePluginNeu,
   openExisting,
   pollUntil,
+  requireUntil,
   requireVisible,
   setAppConfig,
   type Cdp,
@@ -212,7 +213,7 @@ async function chromeShots(cdp: Cdp, out: string, nur: ReadonlySet<string>, chro
       await c.send("Emulation.setDeviceMetricsOverride", { width: breite, height: hoehe, deviceScaleFactor: 1, mobile: mobil });
       await c.send("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: "light" }] });
       await c.send("Page.reload");
-      await pollUntil<boolean>(c, `return document.readyState === "complete";`, 15_000, 200);
+      await requireUntil(c, `document.readyState === "complete"`, "die Seite wurde in Chrome nicht fertig geladen", 15_000, 200);
       const zahl = await sucheNach(c, SUCHWORT);
       await new Promise((r) => setTimeout(r, 500));
       const breiteGemessen = await c.evaluate<number>(`return document.documentElement.scrollWidth;`);
