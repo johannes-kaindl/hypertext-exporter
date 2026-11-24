@@ -65,6 +65,17 @@ describe('stampMeta', () => {
     expect(lines([list[2] as { id: string; version: string }, list[0] as { id: string; version: string }, list[3] as { id: string; version: string }, list[1] as { id: string; version: string }])).toEqual(expected);
   });
 
+  it('stamp: full schreibt den vollen Stempel: alle Felder von minimal in fester Reihenfolge, dann je ein ht-plugin-Eintrag je beteiligtem Plugin (Spec 10.8)', () => {
+    const minimal = stampMeta(BASE).split('\n');
+    const full = stampMeta({ ...BASE, plugins: [{ id: 'templater', version: '2.0.0' }, { id: 'dataview', version: '0.5.68' }] }).split('\n');
+    expect(full).toEqual([
+      ...minimal,
+      '<meta name="ht-plugin" content="dataview@0.5.68">',
+      '<meta name="ht-plugin" content="templater@2.0.0">',
+    ]);
+    expect(full).toHaveLength(minimal.length + 2);
+  });
+
   it('ordnet die Plugins nach Codepunkt und nicht nach UTF-16-Einheit: U+FF5E vor U+1F600', () => {
     const lines = (plugins: StampInput['plugins']): string[] => stampMeta({ ...BASE, plugins }).split('\n').filter((l) => l.startsWith('<meta name="ht-plugin"'));
     const list = [{ id: '\u{1F600}', version: '1' }, { id: '\uFF5E', version: '1' }];

@@ -316,3 +316,39 @@ describe('runExport: Navigation', () => {
     expect(links.map((a) => a.getAttribute('href'))).toEqual(areas.map((el) => `#${el.id}`));
   });
 });
+
+describe('runExport: stamp full', () => {
+  const FILES = { 'a/bericht.md': NOTE };
+  const withPlugins = (ids: string[]) => {
+    const vault = makeVault(FILES, { 'a/bericht.md': { hypertext: { version: 1, stamp: 'full' } } });
+    const manifests: Record<string, { version: string }> = { dataview: { version: '0.5.68' }, banner: { version: '3.1.0' }, templater: { version: '2.0.0' } };
+    (vault.app as unknown as { plugins: unknown }).plugins = { enabledPlugins: new Set(ids), manifests };
+    return { host: hostOf(vault), deps: depsOf(vault) };
+  };
+  const run = async (ids: string[]): Promise<string> => {
+    const { host, deps } = withPlugins(ids);
+    const result = await runExport(host, { kind: 'note', entryPath: 'a/bericht.md' }, fakeRun(), deps);
+    expect(result.ok).toBe(true);
+    return result.html ?? '';
+  };
+
+  it('schreibt den vollen Stempel mit den aktivierten Plugins nach id geordnet', async () => {
+    const html = await run(['templater', 'dataview', 'banner']);
+    const metas = Array.from(parse(html).querySelectorAll('meta[name^="ht-"]')).map((m) => `${m.getAttribute('name')}=${m.getAttribute('content')}`);
+    expect(metas.filter((m) => m.startsWith('ht-plugin='))).toEqual(['ht-plugin=banner@3.1.0', 'ht-plugin=dataview@0.5.68', 'ht-plugin=templater@2.0.0']);
+    expect(metas.slice(0, 8).map((m) => m.split('=')[0])).toEqual(['ht-plugin-version', 'ht-obsidian-version', 'ht-obsidian-lang', 'ht-theme', 'ht-theme-sha256', 'ht-blocks', 'ht-embeds', 'ht-remote-images']);
+  });
+
+  it('ohne stamp: full steht kein ht-plugin im Kopf', async () => {
+    const { host, deps } = small({ 'a/bericht.md': NOTE });
+    const result = await runExport(host, { kind: 'note', entryPath: 'a/bericht.md' }, fakeRun(), deps);
+    expect(parse(result.html ?? '').querySelectorAll('meta[name="ht-plugin"]')).toHaveLength(0);
+  });
+
+  it('die Seite bleibt über zwei Läufe byte-gleich, auch wenn Obsidian die Plugins in anderer Reihenfolge nennt', async () => {
+    const first = await run(['templater', 'dataview', 'banner']);
+    const second = await run(['banner', 'templater', 'dataview']);
+    expect(second).toBe(first);
+    expect(new TextEncoder().encode(second)).toEqual(new TextEncoder().encode(first));
+  });
+});
