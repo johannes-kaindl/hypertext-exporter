@@ -74,6 +74,19 @@ describe('runExport: Fehler halten den Lauf an', () => {
     expect(result.findings.find((f) => f.code === CODES.finalForbidden)?.severity).toBe('error');
   });
 
+  it('ein Befund des zweiten Schutzdurchgangs (final.guard, Mutation-XSS aus dem Review) ergibt ok false und keine Seite', async () => {
+    const { host, deps } = small({ 'a/bericht.md': NOTE });
+    const draw = (async (_opts: unknown, use: (n: { root: HTMLElement; findings: never[] }) => unknown) => {
+      const root = document.createElement('div');
+      root.innerHTML = '<math><mtext><table><mglyph><style><img src=x onerror="document.title=1">';
+      return use({ root, findings: [] });
+    }) as unknown as NonNullable<typeof deps.render>['draw'];
+    const result = await runExport(host, { kind: 'note', entryPath: 'a/bericht.md' }, fakeRun(), { ...deps, render: { draw } });
+    expect(result.ok).toBe(false);
+    expect(result.html).toBeUndefined();
+    expect(result.findings.find((f) => f.code === CODES.finalGuard)?.severity).toBe('error');
+  });
+
   it('eine doppelte Marke auf der Seite (mark.duplicate) hält den Lauf ebenso an', async () => {
     // Die id im Text der Notiz gleicht der Marke der Notiz („bericht“).
     const { host, deps } = small({ 'a/bericht.md': NOTE });
@@ -139,6 +152,7 @@ describe('Beispielordner (Abnahmefall 2) bis zur fertigen Seite', () => {
     expect(count(result.findings, CODES.mediaRemoteSkipped)).toBe(1);
     expect(count(result.findings, CODES.mediaLater)).toBe(2);
     expect(count(result.findings, CODES.outputSize)).toBe(1);
+    expect(count(result.findings, CODES.finalGuard)).toBe(0);
     // Satz 18: der rohe Rahmen wird ersetzt, der Befund erscheint einmal (Stufe info, an der Notiz)
     const frame = result.findings.filter((f) => f.code === CODES.prepareFrameReplaced);
     expect(frame).toHaveLength(1);

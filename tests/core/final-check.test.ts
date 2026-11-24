@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
-import { finalCheck } from '../../src/core/final-check';
+import { finalCheck, finalGuard } from '../../src/core/final-check';
+import { guardExportTree } from '../../src/vendor/kit/export-guard';
 
 const PAGE = document.createElement('div');
 // Benutzerpfade werden zusammengesetzt, damit kein getrackter Text einen Maintainer-Pfad trägt.
@@ -126,5 +127,61 @@ describe('finalCheck', () => {
     const page = document.createElement('div');
     page.innerHTML = '<main id="inhalt"><h2 id="a">A</h2><a href="#a">a</a><a href="#inhalt">i</a><a href="https://x.example/#y">aus</a></main>';
     expect(finalCheck('<p>sauber</p>', page, null)).toEqual([]);
+  });
+});
+
+describe('finalGuard (zweiter Schutzdurchgang auf dem neu gelesenen Text der Seite)', () => {
+  const MXSS = '<math><mtext><table><mglyph><style><img src=x onerror="document.title=1">';
+  const parse = (html: string): Document => new DOMParser().parseFromString(html, 'text/html');
+
+  /** Die Nutzlast des Reviews: der erste Durchgang (am Baum) lässt sie stehen, erst der Text der Seite wird beim Lesen zu einem `img` mit Ereignis-Attribut. */
+  function serializedPage(payload: string): { firstPass: number; html: string } {
+    const doc = parse(`<!doctype html><body><div id="r">${payload}</div>`);
+    const root = doc.getElementById('r') as HTMLElement;
+    const firstPass = guardExportTree(root).length;
+    return { firstPass, html: `<!doctype html><html><body><nav></nav><main id="inhalt">${root.innerHTML}</main></body></html>` };
+  }
+
+  it('Voraussetzung: der erste Durchgang meldet die Mutation-XSS-Nutzlast nicht, die neu gelesene Seite trägt das Ereignis-Attribut', () => {
+    const { firstPass, html } = serializedPage(MXSS);
+    expect(firstPass).toBe(0);
+    expect(parse(html).querySelectorAll('[onerror]').length).toBe(1);
+  });
+
+  it('meldet, was der erste Durchgang durchließ, als error final.guard (und nennt Art und Element)', () => {
+    const { html } = serializedPage(MXSS);
+    const out = finalGuard(parse(html));
+    expect(out.map((f) => `${f.severity}:${f.code}`)).toEqual(['error:final.guard']);
+    expect(out[0]?.message).toContain('onerror');
+    expect(out[0]?.message).toContain('img');
+  });
+
+  it('meldet eine saubere Seite nicht (Gegenprobe), auch nicht mit Bild, Tabelle, Inline-SVG und eigenem Stil im Kopf', () => {
+    const html =
+      '<!doctype html><html><head><style>a::after { content: " (" attr(href) ")"; }</style></head><body><nav><a href="#inhalt">x</a></nav>' +
+      '<main id="inhalt"><p><img src="data:image/png;base64,AAAA" alt=""></p><table><tr><td>1</td></tr></table>' +
+      '<svg width="5" height="5" viewBox="0 0 5 5"><rect width="5" height="5"></rect></svg><a href="https://example.org/">x</a></main></body></html>';
+    expect(finalGuard(parse(html))).toEqual([]);
+  });
+
+  it('lässt ein eingebettetes SVG-Bild stehen, das checkSvg besteht, und meldet eines mit Skript', () => {
+    const b64 = (svg: string): string => btoa(svg);
+    const good = '<svg xmlns="http://www.w3.org/2000/svg" width="5" height="5" viewBox="0 0 5 5"><rect width="5" height="5"/></svg>';
+    const bad = '<svg xmlns="http://www.w3.org/2000/svg" width="5" height="5"><script>1</script></svg>';
+    const page = (svg: string): Document => parse(`<!doctype html><body><main><img alt="" src="data:image/svg+xml;base64,${b64(svg)}"></main></body>`);
+    expect(finalGuard(page(good))).toEqual([]);
+    const out = finalGuard(page(bad));
+    expect(out.map((f) => f.code)).toEqual(['final.guard']);
+    expect(out[0]?.message).toContain('src an img');
+    // als Link- oder Rahmenziel ist data:image/svg+xml weiter ein Befund
+    expect(finalGuard(parse(`<!doctype html><body><a href="data:image/svg+xml;base64,${b64(good)}">x</a></body>`))).toHaveLength(1);
+  });
+
+  it('fasst viele Stellen zu einem Befund zusammen', () => {
+    const html = '<!doctype html><body><main>' + '<a href="javascript:1" onclick="x()">a</a>'.repeat(30) + '</main></body>';
+    const out = finalGuard(parse(html));
+    expect(out).toHaveLength(1);
+    expect(out[0]?.code).toBe('final.guard');
+    expect(out[0]?.message).toContain('×30');
   });
 });

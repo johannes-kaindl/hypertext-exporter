@@ -1,7 +1,10 @@
 // Harte Endprüfung (Bauplan Task 10, Spec 10.4 und 10.8): sieht nur den fertigen Text der Seite.
 // Die Marken-Prüfung über die ganze Seite (`mark.duplicate`, `mark.missing-target`) macht allein die Kit-Funktion `checkAnchors` (Bestellung 6).
 import { checkAnchors } from '../vendor/kit/anchor-check';
+import { dataUrlToBytes } from '../vendor/kit/data-url';
+import { guardExportTree, type ExportGuardFinding } from '../vendor/kit/export-guard';
 import { escapeHtmlAttr, escapeHtmlText } from '../vendor/kit/html-escape';
+import { checkSvg } from '../vendor/kit/svg-guard';
 import { CODES } from './finding-codes';
 import type { Finding } from './types';
 
@@ -96,4 +99,49 @@ export function finalCheck(html: string, page: HTMLElement, basePath: string | n
     }
   }
   return findings;
+}
+
+/** Ist `src` ein `data:image/svg+xml;base64,…`, dessen Zeichnung `checkSvg` besteht? */
+function svgImageIsChecked(src: string): boolean {
+  if (!/^data:image\/svg\+xml;base64,/i.test(src)) return false;
+  try {
+    return checkSvg(new TextDecoder().decode(dataUrlToBytes(src))).ok;
+  } catch {
+    return false;
+  }
+}
+
+const GUARD_KIND_LABEL: Record<ExportGuardFinding['kind'], string> = {
+  element: 'Element',
+  attribute: 'Attribut',
+  declaration: 'Stilangabe',
+  svg: 'Zeichnung',
+  comment: 'Kommentar',
+};
+
+/**
+ * Zweiter Schutzdurchgang (Review Etappe 10, Befund 2): der Schutzdurchgang je Notiz urteilt über den Baum, den Obsidian zeichnet. Ein Baum, der beim Schreiben und erneuten Lesen
+ * etwas anderes ergibt (Mutation-XSS, etwa `<math><mtext><table><mglyph><style><img onerror>`), besteht ihn und wird erst im gelesenen Text der Seite gefährlich. Deshalb läuft
+ * `guardExportTree` noch einmal auf dem neu gelesenen Text der fertigen Seite (`page`, aus `DOMParser`). Jeder Befund dort ist ein `error` `final.guard`, der Export schreibt nichts.
+ *
+ * Geprüft wird der Körper (Navigation und Inhalt), nicht der Kopf: der `<style>` im Kopf ist der eigene Stil der Seite und trägt Angaben (`attr(href)` im Druckblock),
+ * die der Durchgang für fremden Text entfernen würde. Der Baum wird dabei verändert; Aufrufer nehmen ihn danach nicht mehr für andere Prüfungen.
+ * Eine Zeichnung als Bild (`<img src="data:image/svg+xml;base64,…">`) setzt der Medienschritt nach `checkSvg` ein; der Durchgang lässt `data:image/svg+xml` als Ziel nicht zu (als Rahmen oder
+ * Link liefe es). Hier wird ein solches Bild darum erneut mit `checkSvg` geprüft: besteht es, ist es kein Befund, sonst bleibt sein `src` stehen und der Durchgang meldet es.
+ * Alle Stellen gehen in einen Befund (Art, Element, Name, Zahl), sonst wüchse die Liste mit jedem Treffer.
+ */
+export function finalGuard(page: ParentNode): Finding[] {
+  const body = page.querySelector('body') ?? page;
+  for (const img of Array.from(body.querySelectorAll('img'))) {
+    if (svgImageIsChecked(img.getAttribute('src') ?? '')) img.removeAttribute('src');
+  }
+  const found = guardExportTree(body);
+  if (found.length === 0) return [];
+  const labels = new Map<string, number>();
+  for (const f of found) {
+    const label = `${GUARD_KIND_LABEL[f.kind]} ${f.name !== undefined ? `${f.name} an ${f.element}` : f.element}`;
+    labels.set(label, (labels.get(label) ?? 0) + 1);
+  }
+  const list = Array.from(labels, ([label, n]) => (n > 1 ? `${label} ×${n}` : label)).join(', ');
+  return [{ severity: 'error', code: CODES.finalGuard, message: `Der Schutzdurchgang fand in der fertigen Seite noch ${found.length} Stelle(n) mit aktivem Inhalt (${list}); die Seite wird nicht geschrieben.` }];
 }

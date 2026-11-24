@@ -6,14 +6,14 @@
 //   1+2  Menge sammeln, Bauanleitung lesen, Befunde sammeln   → ein Fehler hält hier an, vor dem Zeichnen
 //   2b–5 je Notiz: Vorbehandeln, Zeichnen, Einfrieren, Schutz (`renderNote`), dann Medien (`embedMedia`)   → ein verdecktes Fenster hält an
 //   6–9  Marken, Links, Aufklappen, Übersichten (`structure`)
-//   11   Seite bauen (Stil, MathJax-Stile, Stempel), harte Endprüfung   → ein Fehler hält an, es entsteht keine Seite
+//   11   Seite bauen (Stil, MathJax-Stile, Stempel), harte Endprüfung, zweiter Schutzdurchgang auf dem neu gelesenen Text   → ein Fehler hält an, es entsteht keine Seite
 // Schritt 10 (Medien) läuft je Notiz gleich nach dem Zeichnen, weil die Adressen der Bilder nur dort gelten; Schritt 12 (Ausgeben) gehört `writeExport` und dem Aufrufer.
 //
 // Ein Abbruch oder ein Fehler gibt ein `ExportResult` mit `ok: false` und ohne `html`; der Aufrufer schreibt damit (`writeExport`) die Ergebnisdatei mit `ok:false`.
 import { apiVersion, getLanguage, type App } from 'obsidian';
 import { CODES } from '../core/finding-codes';
 import { FindingList } from '../core/findings';
-import { finalCheck } from '../core/final-check';
+import { finalCheck, finalGuard } from '../core/final-check';
 import { filterMathCss } from '../core/math-css';
 import { buildOverview, summaryLine } from '../core/overview';
 import { buildPage } from '../core/page';
@@ -293,6 +293,8 @@ export async function runExport(host: PipelineHost, req: ExportRequest, run: Run
   // Harte Endprüfung am fertigen Text
   const parsed = new DOMParser().parseFromString(html, 'text/html').documentElement;
   findings.addAll(finalCheck(html, parsed, deps.basePath !== undefined ? deps.basePath : readBasePath(app)));
+  // Zweiter Schutzdurchgang auf dem neu gelesenen Text (verändert `parsed`, deshalb nach der Endprüfung)
+  findings.addAll(finalGuard(parsed));
   if (findings.hasError()) return result(false);
 
   // 12 (Form): `auto` wählt in Etappe 5 immer `file`; das Paket kommt in Etappe 6. Die Größe steht als Hinweis, über der Grenze zusätzlich als Warnung.

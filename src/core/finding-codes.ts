@@ -39,6 +39,7 @@ export const CODES = {
   mathFontUrl: 'math.font-url',
   finalForbidden: 'final.forbidden',
   finalUserPath: 'final.user-path',
+  finalGuard: 'final.guard',
   outputSize: 'output.size',
   outputOverLimit: 'output.over-limit',
   outputWriteFailed: 'output.write-failed',
