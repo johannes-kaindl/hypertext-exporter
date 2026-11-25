@@ -1,4 +1,4 @@
-// vendored from obsidian-kit@0.109.0, src/pure/anchor-walk.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
+// vendored from obsidian-kit@0.109.1, src/pure/anchor-walk.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
 // Origin: new in obsidian-kit (Welle 36, h3, order 6 of the hypertext-exporter plan, spec 10.3 and 10.4). The half of the order that reads Obsidian's RENDERED tree; the plain half
 // (the scheme of the marks, `shiftHeadingLevels`, `checkAnchors`) lives in code-kit `pure/anchor-marks` and `web/anchor-check`. No `obsidian` import: the module reads a DOM tree
 // it is handed (the root of `withRenderedNote`), so it is tested at a real DOM (happy-dom) and measured once in the live app (pilot driver `anchor-walk`).

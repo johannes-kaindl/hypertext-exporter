@@ -1,4 +1,4 @@
-// vendored from obsidian-kit@0.109.0, src/obsidian/inline-images.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
+// vendored from obsidian-kit@0.109.1, src/obsidian/inline-images.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
 // Bilder eines gerenderten Dokuments als data:-URL einbetten, damit `printHtmlToPdf` sie im unsichtbaren `<webview>` findet.
 //
 // Warum es das gibt: das Druck-`<webview>` hat kein app://-Origin; ein Bild mit `app://…`-Quelle oder einem Vault-Pfad lädt dort nicht. Paperize (`export-desktop.ts`, `inlineImages` und `toDataUrl`) und Letterhead

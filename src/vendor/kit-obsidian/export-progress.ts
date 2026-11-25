@@ -1,4 +1,4 @@
-// vendored from obsidian-kit@0.109.0, src/obsidian/export-progress.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
+// vendored from obsidian-kit@0.109.1, src/obsidian/export-progress.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
 // Fortschritt mit Abbrechen für Exporte (Welle 36, h2b, Bestellung 14 der Design-Linie hypertext; gehoben aus obsidian-paperize@0.6.2 `src/obsidian/export-progress.ts` `startExportProgress`, auf code-kit `run-state` und `cooperative-yield`).
 //
 // Ein Hinweis (`Notice`, ohne Frist) mit Fortschrittstext und Abbrechen-Knopf, ein Laufzustand dahinter und ein Haltepunkt je Notiz:

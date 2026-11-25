@@ -1,4 +1,4 @@
-// vendored from obsidian-kit@0.109.0, src/pure/export-prepare.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
+// vendored from obsidian-kit@0.109.1, src/pure/export-prepare.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
 // export-prepare.ts — Notizkörper vor `MarkdownRenderer.render` für einen Export vorbereiten: rohe Rahmen ersetzen, Codeblöcke nach Stellung herausnehmen, Inline-Abfragen brechen. Kein `obsidian`-Import.
 //
 // Warum hier und nicht in code-kit (erste Frage aus AGENTS.md): der Vertrag trägt Obsidian-Annahmen, die code-kit nicht kennt: `app:`-, relative und `file:`-Ziele eines rohen Rahmens öffnen in Obsidian 1.15.1 einen Fehlerdialog des
