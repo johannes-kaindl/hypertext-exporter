@@ -5,7 +5,7 @@ Exportiert einen Ordner mit Markdown-Notizen als eine eigenständige HTML-Seite:
 [![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](https://github.com/johannes-kaindl/hypertext-exporter/blob/main/LICENSE)
 [![Doku: CC BY-SA 4.0](https://img.shields.io/badge/docs-CC%20BY--SA%204.0-lightgrey.svg)](https://github.com/johannes-kaindl/hypertext-exporter/blob/main/LICENSE-DOCS)
 [![Release](https://img.shields.io/github/v/release/johannes-kaindl/hypertext-exporter?label=release)](https://github.com/johannes-kaindl/hypertext-exporter/releases)
-[![Platform: Desktop](https://img.shields.io/badge/Platform-Desktop%20(mobile%20ungemessen)-blue.svg)](https://github.com/johannes-kaindl/hypertext-exporter/blob/main/manifest.json)
+[![Platform: Desktop + Mobile](https://img.shields.io/badge/Platform-Desktop%20%2B%20Mobile-blue.svg)](https://github.com/johannes-kaindl/hypertext-exporter/blob/main/manifest.json)
 
 > [🇬🇧 English](https://github.com/johannes-kaindl/hypertext-exporter/blob/main/README.md) · 🇩🇪 Deutsch
 >
@@ -108,7 +108,7 @@ Jeder Schlüssel hat einen deutschen Alias (`sections` heißt auch `bereiche`). 
 - **Ton, Film und andere Anhänge sind noch nicht eingebettet.** Die Seite zeigt den Dateinamen (`media.later`). Bilder, auch SVG, sind eingebettet.
 - **Die Suche hebt höchstens 5000 Treffer hervor.** Ein Wort über zwei Textknoten wird gefunden, aber nicht hervorgehoben.
 - **Noch nicht gebaut und nicht zugesagt:** andere Themen als das Standard-Thema, ein Paket aus Dateien statt einer Datei, Bilder aus dem Netz, ein Zustandsraster für Tabellen. Ihre Schlüssel werden gelesen und mit einer Warnung beantwortet (`recipe.not-yet`).
-- **Mobil ist vorgesehen, am Gerät nicht gemessen.**
+- **Am iPhone und iPad geht die Seite als Vorschau ohne ihr Skript auf.** Der Export selbst läuft dort (gemessen an einem iPhone mit iOS 26: unter zehn Sekunden, zweimal dieselben Bytes, dieselben Befunde wie am Mac). Die App Dateien zeigt die fertige Seite in einer Vorschau, die kein Skript ausführt: Der Text steht da, die Suchzeile und die Knöpfe *Alles aufklappen* und *Alles zuklappen* fehlen. Safari unter iOS öffnet keine lokale Datei, es bietet nur an, sie zu sichern. Von einer Webadresse geladen (eigene Website oder ein Webserver), führt Safari die Seite mit Suche aus (gemessen im iOS-26.5-Simulator). Am Computer öffnet jeder Browser die Datei direkt.
 - **Wogegen die Seite nicht schützt:** Inhalt, der täuscht, ein Plugin, das beim Zeichnen einer Notiz etwas tut, und jemand, der die fertige Datei ändert. Siehe [Security and determinism](https://github.com/johannes-kaindl/hypertext-exporter/blob/main/docs/explanation/security-and-determinism.md) (englisch).
 
 ## Konfiguration

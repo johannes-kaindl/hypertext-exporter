@@ -5,7 +5,7 @@ Export a folder of Markdown notes as one self-contained HTML page: foldable, sea
 [![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](https://github.com/johannes-kaindl/hypertext-exporter/blob/main/LICENSE)
 [![Docs: CC BY-SA 4.0](https://img.shields.io/badge/docs-CC%20BY--SA%204.0-lightgrey.svg)](https://github.com/johannes-kaindl/hypertext-exporter/blob/main/LICENSE-DOCS)
 [![Release](https://img.shields.io/github/v/release/johannes-kaindl/hypertext-exporter?label=release)](https://github.com/johannes-kaindl/hypertext-exporter/releases)
-[![Platform: Desktop](https://img.shields.io/badge/Platform-Desktop%20(mobile%20untested)-blue.svg)](https://github.com/johannes-kaindl/hypertext-exporter/blob/main/manifest.json)
+[![Platform: Desktop + Mobile](https://img.shields.io/badge/Platform-Desktop%20%2B%20Mobile-blue.svg)](https://github.com/johannes-kaindl/hypertext-exporter/blob/main/manifest.json)
 
 > 🇬🇧 English · [🇩🇪 Deutsch](https://github.com/johannes-kaindl/hypertext-exporter/blob/main/README.de.md)
 
@@ -104,7 +104,7 @@ Every key has a German alias (`sections` is also `bereiche`). A misspelled key i
 - **Audio, video and other attachments are not embedded yet.** The page shows the file name (`media.later`). Images, including SVG, are embedded.
 - **Search highlights at most 5000 matches.** A word that straddles two text nodes is found but not highlighted.
 - **Not built yet, and not promised:** themes other than the default, a package of files instead of one file, remote images, a state grid for tables. Their recipe keys are read and answered with a warning (`recipe.not-yet`).
-- **Mobile is intended, not measured on a device.**
+- **On iPhone and iPad the page opens as a preview without its script.** The export itself runs there (measured on an iPhone with iOS 26: under ten seconds, the same bytes twice, the same findings as on a Mac). The Files app shows the finished page in a preview that runs no script: the text is there, the search row and the buttons *Expand all* and *Collapse all* are not. Safari on iOS does not open a local file; it only offers to save it. Served from a web address (your own website or a web server), Safari runs the page with search (measured in the iOS 26.5 Simulator). On a computer, every browser opens the file directly.
 - **What the page does not protect against:** content that deceives, a plugin that acts while a note is drawn, and anyone who edits the finished file. See [Security and determinism](https://github.com/johannes-kaindl/hypertext-exporter/blob/main/docs/explanation/security-and-determinism.md).
 
 ## Configuration
