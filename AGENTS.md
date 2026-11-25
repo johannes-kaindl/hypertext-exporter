@@ -2,7 +2,7 @@
 
 Orientierung für KI-Agenten (Claude Code, Codex, …) und Mitwirkende an diesem Repository. Workspace-weite Standards (comply-or-explain): siehe [`../../workspace/_docs/CONVENTIONS.md`](../../workspace/_docs/CONVENTIONS.md) (maintainer-lokal, nicht Teil dieses Repos — ignorieren, falls im Klon nicht vorhanden).
 
-**Stand 2026-11-25 (Welle 38):** release-reif für 0.1.0, wartet nur auf Johannes' Blick am iPhone (Handover im Cockpit). Am iPhone gemessen: Export unter 10 s, byte-gleich, Befunde wie am Mac; die App Dateien zeigt die Seite ohne Skript, von einer Webadresse läuft die Suche (iOS-Simulator), README nennt die Grenze. Etappen 6, 8 und 9 laufen nach 0.1.0. Spec und Bauplan liegen im Coding-Cockpit; der Bauplan ist die SSOT für den Stand je Task, ältere Stände stehen in `git log` und im Cockpit-Log.
+**Stand 2026-11-25 (Welle 38, hx-release):** release-reif für 0.1.0, von Johannes freigegeben; Gate, Preflight und Trockenlauf grün, GitHub-Repo angelegt (privat bis zum Release, Remote `github`). Den Release fährt das Startskript aus der Handover im Cockpit (Release, Repos öffentlich, Katalog), danach die Store-Einreichung durch Johannes. Am iPhone gemessen: Export unter 10 s, byte-gleich; die App Dateien zeigt eine Vorschau ohne Skript, Suche nur von einer Webadresse, große Seiten (10 MB) lädt Safari dort nicht ganz; README nennt die Grenzen. Etappen 6, 8 und 9 laufen nach 0.1.0. Spec und Bauplan liegen im Coding-Cockpit; der Bauplan ist die SSOT für den Stand je Task, ältere Stände stehen in `git log` und im Cockpit-Log.
 
 ## Project character
 
