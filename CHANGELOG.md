@@ -30,3 +30,8 @@ All notable changes to this project are documented here. The format follows
 - A second protection pass runs on the finished page read back from its text; if it still finds active content, nothing is written.
 - The finished page is checked for `app://`, `capacitor://`, `file://` and the path of the vault; a hit stops the run.
 - Raw frames in note text are replaced before drawing; the recipe switch `blocks` decides which code blocks other plugins may draw.
+
+### Known limits
+
+- On iPhone and iPad the Files app shows the page in a preview without its script: folded sections open and close, search and *Expand all* are missing, and its share sheet offers no browser. Served from a web address, Safari on an iPhone runs the page with search; a large page (10 MB measured) does not load completely there.
+- Mermaid diagrams need a recent Obsidian: under Obsidian 1.12.4 they are left out of the page with a finding (see the README).
