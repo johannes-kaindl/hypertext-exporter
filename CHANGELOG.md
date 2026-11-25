@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.1.0] — 2026-11-25
+
 ### Added
 
 - Export of a folder of notes, or of a single note, as one self-contained HTML page: commands **Export folder as HTML page…** and **Export current note as HTML page**, entries in the file menu of folders and notes, and the Hypertext Exporter panel with the tabs **Export** and **Findings**.
