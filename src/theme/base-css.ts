@@ -113,6 +113,15 @@ nav ul {
   list-style: none;
 }
 
+/* Obergruppe über mehrere Quellen: ihre Untergruppen stehen eingerückt in einer eigenen Zeile unter ihr. */
+nav li:has(> ul) {
+  flex-basis: 100%;
+}
+
+nav li > ul {
+  padding-inline-start: calc(var(--ht-space) * 2);
+}
+
 nav a {
   display: inline-flex;
   align-items: center;

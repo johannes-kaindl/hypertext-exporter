@@ -89,6 +89,10 @@ interface GroupSpec {
   summaryLine: Column[];
   order: OrderRule;
   groupBy: string[];
+  /** `titleFrom[i]`: Feld für die Titel der Gruppen der Ebene `groupBy[i]`. */
+  titleFrom: string[];
+  /** Ort in der Bauanleitung, für Befunde über die Gruppentitel. */
+  recipePath?: string;
   sourceKey?: string;
 }
 
@@ -256,9 +260,31 @@ export function buildSet(scope: ExportScope, notes: NoteInput[], recipe: Recipe)
     return intro === null ? arranged : [pageNote(intro, depth, spec.sourceKey), ...arranged];
   };
 
-  /** Notizen nach den Werten eines Feldes in verschachtelte Gruppen; fehlt der Wert, kommt die Notiz in „—“ am Ende. */
-  const groupPages = (pages: FolderTreePage[], fields: string[], depth: number, parentKey: string, spec: GroupSpec, rank: Map<string, number> | null): SetNode[] => {
+  /**
+   * Der Titel einer Feldgruppe aus dem Feld `titleField` ihrer Notizen (`title_from`): der erste Wert in der Ordnung der Gruppe. Weichen Werte davon ab, eine Warnung
+   * `set.group-title` (Titel bleibt der erste Wert); trägt keine Notiz einen Wert, ein Hinweis `set.group-title.missing` und der Gruppenwert bleibt Titel.
+   */
+  const titleFromField = (pages: FolderTreePage[], titleField: string, value: string, spec: GroupSpec): string => {
+    const values = pages.flatMap((page) => {
+      const n = lookup(page.path);
+      const v = scalarText(n === undefined ? undefined : readField(n.frontmatter, titleField, []));
+      return v === undefined ? [] : [{ v, path: page.path }];
+    });
+    const extra = spec.recipePath === undefined ? {} : { recipePath: spec.recipePath };
+    const first = values[0];
+    if (first === undefined) {
+      findings.push(note(CODES.setGroupTitle, 'info', 'missing', [titleField, value], extra));
+      return value;
+    }
+    const other = values.find((e) => e.v !== first.v);
+    if (other !== undefined) findings.push(note(CODES.setGroupTitle, 'warning', undefined, [titleField, value, first.v, other.v], { ...extra, notePath: other.path }));
+    return first.v;
+  };
+
+  /** Notizen nach den Werten eines Feldes in verschachtelte Gruppen; fehlt der Wert, kommt die Notiz in „—“ am Ende. `titleFields` läuft mit `fields` mit (Feld für den Gruppentitel je Ebene). */
+  const groupPages = (pages: FolderTreePage[], fields: string[], titleFields: string[], depth: number, parentKey: string, spec: GroupSpec, rank: Map<string, number> | null): SetNode[] => {
     const [field, ...rest] = fields;
+    const [titleField, ...restTitles] = titleFields;
     if (field === undefined) return arrange(pages.map((p) => pageNote(p, depth, spec.sourceKey)), spec.order, rank);
     const byFolder = ['folder', 'ordner'].includes(foldCase(field));
     interface Bucket { key: string; title: string; sortName: string; pages: FolderTreePage[] }
@@ -289,7 +315,8 @@ export function buildSet(scope: ExportScope, notes: NoteInput[], recipe: Recipe)
     if (missing !== null) ordered.push(missing);
     return ordered.map((bucket): SetNode => {
       const key = `${parentKey}/${bucket.key}`;
-      return { key, title: bucket.title, open: false, overview: [], summaryLine: [], children: groupPages(bucket.pages, rest, depth + 1, key, spec, rank) };
+      const title = titleField === undefined || bucket === missing ? bucket.title : titleFromField(bucket.pages, titleField, bucket.title, spec);
+      return { key, title, open: false, overview: [], summaryLine: [], children: groupPages(bucket.pages, rest, restTitles, depth + 1, key, spec, rank) };
     });
   };
 
@@ -299,10 +326,10 @@ export function buildSet(scope: ExportScope, notes: NoteInput[], recipe: Recipe)
   };
 
   /** Ein Bereich oder eine Quelle als Gruppe: Titel, offen, Übersicht und Zusatzzeile des Bereichs; Notizen nach `group_by`, sonst in der Ordnung des Baums. */
-  const groupOf = (tree: FolderTree, spec: GroupSpec): SetGroup => {
+  const groupOf = (tree: FolderTree, spec: GroupSpec, depth = 1): SetGroup => {
     const pages = flattenFolderTree(tree);
     const rank = mentionRank(pages, spec);
-    const children = spec.groupBy.length > 0 ? groupPages(pages, spec.groupBy, 1, spec.key, spec, rank) : convert(tree.intro, tree.children, 1, spec, rank);
+    const children = spec.groupBy.length > 0 ? groupPages(pages, spec.groupBy, spec.titleFrom, depth, spec.key, spec, rank) : convert(tree.intro, tree.children, depth, spec, rank);
     return { key: spec.key, title: spec.title ?? tree.title, open: spec.open, overview: spec.overview, summaryLine: spec.summaryLine, children };
   };
   const plain = (key: string, title: string | undefined, sourceKey?: string): GroupSpec => ({
@@ -313,9 +340,17 @@ export function buildSet(scope: ExportScope, notes: NoteInput[], recipe: Recipe)
     summaryLine: [],
     order: { kind: 'name' },
     groupBy: [],
+    titleFrom: [],
     ...(sourceKey !== undefined ? { sourceKey } : {}),
   });
-  const sourceGroup = (source: SourceTree, over: Partial<GroupSpec> = {}): SetGroup => groupOf(source.tree, { ...plain(source.key, source.title, source.key), ...over });
+  const sourceGroup = (source: SourceTree, over: Partial<GroupSpec> = {}, depth = 1): SetGroup => groupOf(source.tree, { ...plain(source.key, source.title, source.key), ...over }, depth);
+  /** Was ein Bereich an seine Gruppe gibt: Ordnung, Feldgruppen und deren Titel, Ort für Befunde. */
+  const sectionSpec = (section: SectionSpec, recipePath: string): Pick<GroupSpec, 'order' | 'groupBy' | 'titleFrom' | 'recipePath'> => ({
+    order: section.order,
+    groupBy: section.groupBy,
+    titleFrom: section.titleFrom ?? [],
+    recipePath,
+  });
   const claimPages = (tree: FolderTree): number => {
     let skipped = 0;
     for (const page of flattenFolderTree(tree)) {
@@ -337,14 +372,35 @@ export function buildSet(scope: ExportScope, notes: NoteInput[], recipe: Recipe)
     recipe.sections.forEach((section: SectionSpec, i) => {
       const recipePath = `sections[${i}]`;
       const invalid = (variant: string, args: readonly FindingArg[], severity: Finding['severity'] = 'error'): void => { findings.push(note(CODES.recipeInvalid, severity, variant, [recipePath, ...args], { recipePath })); };
-      if (section.kind === 'source') {
-        const source = sourceTrees.find((s) => s.key === section.path);
+      /** Die Quelle zu einem Schlüssel, oder `undefined` mit Befund (unbekannt: Fehler; schon von einem früheren Bereich gezeigt: Warnung; leer: schon unter `sources` gemeldet). */
+      const sourceFor = (key: string): SourceTree | undefined => {
+        const source = sourceTrees.find((s) => s.key === key);
         if (source === undefined) {
-          if (!resolved.folders.some((f) => f.key === section.path)) invalid('section-source', [section.path]);
-          return;
+          if (!resolved.folders.some((f) => f.key === key)) invalid('section-source', [key]);
+          return undefined;
         }
-        used.add(source.key);
-        nodes.push(sourceGroup(source, { title: section.title ?? source.title, open: section.open, overview: section.overview, summaryLine: section.summaryLine, order: section.order, groupBy: section.groupBy }));
+        if (used.has(key)) {
+          invalid('section-source-placed', [key], 'warning');
+          return undefined;
+        }
+        used.add(key);
+        return source;
+      };
+      if (section.kind === 'source') {
+        const source = sourceFor(section.path);
+        if (source === undefined) return;
+        nodes.push(sourceGroup(source, { title: section.title ?? source.title, open: section.open, overview: section.overview, summaryLine: section.summaryLine, ...sectionSpec(section, recipePath) }));
+        return;
+      }
+      if (section.kind === 'sources') {
+        // Obergruppe: je Quelle eine Untergruppe mit Titel der Quelle; Ordnung, Feldgruppen und Gruppentitel des Bereichs gelten in jeder Quelle, Übersicht und Zusatzzeile an der Obergruppe.
+        const children = (section.sources ?? []).flatMap((key) => {
+          const source = sourceFor(key);
+          return source === undefined ? [] : [sourceGroup(source, sectionSpec(section, recipePath), 2)];
+        });
+        if (children.length === 0) return;
+        const title = section.title ?? '';
+        nodes.push({ key: title, title, open: section.open, overview: section.overview, summaryLine: section.summaryLine, children, nav: true });
         return;
       }
       const target = resolveRelPath(scope.folder, section.path, { allowEmpty: true });
@@ -378,7 +434,7 @@ export function buildSet(scope: ExportScope, notes: NoteInput[], recipe: Recipe)
       const tree = treeOf(target.path, free);
       if (free.length === 0 || flattenFolderTree(tree).length === 0) return;
       claimPages(tree);
-      nodes.push(groupOf(tree, { key: target.path, title: section.title, open: section.open, overview: section.overview, summaryLine: section.summaryLine, order: section.order, groupBy: section.groupBy }));
+      nodes.push(groupOf(tree, { key: target.path, title: section.title, open: section.open, overview: section.overview, summaryLine: section.summaryLine, ...sectionSpec(section, recipePath) }));
     });
     // Quellen, die kein Bereich nennt, gehören trotzdem zur Menge: sie folgen am Ende in der Reihenfolge der Liste.
     for (const source of sourceTrees) if (!used.has(source.key)) nodes.push(sourceGroup(source));

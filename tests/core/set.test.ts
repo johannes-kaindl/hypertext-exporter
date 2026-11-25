@@ -430,3 +430,115 @@ describe('resolveSourcePaths', () => {
     expect(r.findings).toEqual([expect.objectContaining({ severity: 'error', code: CODES.recipeInvalid, recipePath: 'sources[1]' })]);
   });
 });
+
+describe('Obergruppe über mehrere Quellen (sections mit sources)', () => {
+  const NOTES = [
+    note('auswertungen/a/bericht.md', {}, '# Bericht\n'),
+    note('auswertungen/a/lokal.md'),
+    note('runs/s11/interviews/bernd/01.md', { persona: 'bernd-schreiner', vorname: 'Bernd' }),
+    note('runs/s11/interviews/anna/01.md', { persona: 'anna-lehrerin', vorname: 'Anna' }),
+    note('runs/s12/interviews/bernd/01.md', { persona: 'bernd-schreiner', vorname: 'Bernd' }),
+    note('runs/s13/interviews/cora/01.md', { persona: 'cora-pflege', vorname: 'Cora' }),
+  ];
+  const sources = [
+    { path: '../../runs/s11/interviews', key: 's11', title: 'Lauf s11' },
+    { path: '../../runs/s12/interviews', key: 's12', title: 'Lauf s12' },
+    { path: '../../runs/s13/interviews', key: 's13', title: 'Lauf s13' },
+  ];
+  const scope = folderScope('auswertungen/a', 'auswertungen/a/bericht.md');
+  const interviews = (patch: Partial<SectionSpec> = {}): SectionSpec => section({ kind: 'sources', path: '', sources: ['s11', 's12'], title: 'Interviews', groupBy: ['persona'], ...patch });
+
+  it('gliedert Interviews > Lauf > Persona > Interview; die Läufe in Listenreihenfolge der Obergruppe, nicht genannte Quellen am Ende', () => {
+    const { set, findings } = buildSet(scope, NOTES, withRecipe({ sources, sections: [section({ kind: 'note', path: 'lokal.md' }), interviews()] }));
+    expect(findings).toEqual([]);
+    expect(outline(set.nodes)).toEqual([
+      'auswertungen/a/lokal.md',
+      '[Interviews]',
+      '  [Lauf s11]', '    [anna-lehrerin]', '      runs/s11/interviews/anna/01.md', '    [bernd-schreiner]', '      runs/s11/interviews/bernd/01.md',
+      '  [Lauf s12]', '    [bernd-schreiner]', '      runs/s12/interviews/bernd/01.md',
+      '[Lauf s13]', '  [cora]', '    runs/s13/interviews/cora/01.md',
+    ]);
+  });
+
+  it('depth zählt Obergruppe, Lauf und Persona: 3; die Notizen behalten ihren sourceKey', () => {
+    const { set } = buildSet(scope, NOTES, withRecipe({ sources, sections: [interviews()] }));
+    const group = set.nodes[0] as SetGroup;
+    expect(notesOf(group.children).map((n) => [n.depth, n.sourceKey])).toEqual([[3, 's11'], [3, 's11'], [3, 's12']]);
+    // Ohne group_by gliedert der Ordnerbaum der Quelle: Obergruppe, Lauf, Unterordner.
+    const plainSet = buildSet(scope, NOTES, withRecipe({ sources, sections: [interviews({ groupBy: [], sources: ['s11'] })] })).set;
+    expect(outline([plainSet.nodes[0] as SetGroup])).toEqual(['[Interviews]', '  [Lauf s11]', '    [anna]', '      runs/s11/interviews/anna/01.md', '    [bernd]', '      runs/s11/interviews/bernd/01.md']);
+    expect(notesOf((plainSet.nodes[0] as SetGroup).children).map((n) => n.depth)).toEqual([3, 3]);
+  });
+
+  it('die Obergruppe trägt Titel, offen, Übersicht, Zusatzzeile und nav; die Läufe tragen ihre Schlüssel und sind zu', () => {
+    const cols = [{ header: 'P', field: 'persona' }];
+    const { set } = buildSet(scope, NOTES, withRecipe({ sources, sections: [interviews({ open: true, overview: cols, summaryLine: cols })] }));
+    const group = set.nodes[0] as SetGroup;
+    expect(group).toMatchObject({ key: 'Interviews', title: 'Interviews', open: true, overview: cols, summaryLine: cols, nav: true });
+    expect(group.children.map((c) => (isGroup(c) ? [c.key, c.title, c.open, c.nav] : c.path))).toEqual([['s11', 'Lauf s11', false, undefined], ['s12', 'Lauf s12', false, undefined]]);
+  });
+
+  it('eine unbekannte Quelle ist ein Fehler, eine schon gezeigte eine Warnung; die übrigen stehen in der Obergruppe', () => {
+    const r = withRecipe({ sources, sections: [section({ kind: 'source', path: 's12' }), interviews({ sources: ['s11', 's12', 'drei'] })] });
+    const { set, findings } = buildSet(scope, NOTES, r);
+    expect(findings.map((f) => [f.severity, f.variant, f.args?.[1]])).toEqual([['error', 'section-source', 'drei'], ['warning', 'section-source-placed', 's12']]);
+    expect(outline(set.nodes).filter((l) => l.trim().startsWith('[Lauf'))).toEqual(['[Lauf s12]', '  [Lauf s11]', '[Lauf s13]']);
+  });
+
+  it('ohne eine vorhandene Quelle entsteht keine Obergruppe', () => {
+    const { set } = buildSet(scope, NOTES, withRecipe({ sources, sections: [interviews({ sources: ['x'] })] }));
+    expect(outline(set.nodes).filter((l) => l.startsWith('['))).toEqual(['[Lauf s11]', '[Lauf s12]', '[Lauf s13]']);
+  });
+
+  it('eine Bauanleitung ohne Obergruppe setzt nav nirgends (Ausgabe wie vorher)', () => {
+    const { set } = buildSet(scope, NOTES, withRecipe({ sources, sections: [section({ kind: 'source', path: 's11', groupBy: ['persona'] })] }));
+    const groups = (nodes: SetNode[]): SetGroup[] => nodes.flatMap((n) => (isGroup(n) ? [n, ...groups(n.children)] : []));
+    for (const g of groups(set.nodes)) expect(g).not.toHaveProperty('nav');
+  });
+});
+
+describe('title_from (Gruppentitel aus einem anderen Feld)', () => {
+  const NOTES = [
+    note('p/p.md'),
+    note('p/iv/1.md', { persona: 'bernd-schreiner', vorname: 'Bernd' }),
+    note('p/iv/2.md', { persona: 'bernd-schreiner', vorname: 'Bernd' }),
+    note('p/iv/3.md', { persona: 'anna-lehrerin', vorname: 'Anna' }),
+    note('p/iv/4.md', { lauf: 'x' }),
+  ];
+  const r = (titleFrom: string[], groupBy = ['persona']): Recipe => withRecipe({ sections: [section({ kind: 'folder', path: 'iv', title: 'Interviews', groupBy, titleFrom })] });
+
+  it('der Titel kommt aus dem Feld, die Ordnung und der Schlüssel bleiben beim Gruppenwert; die Gruppe „—“ behält ihren Titel', () => {
+    const { set, findings } = buildSet(folderScope('p'), NOTES, r(['vorname']));
+    expect(outline(set.nodes)).toEqual(['[Interviews]', '  [Anna]', '    p/iv/3.md', '  [Bernd]', '    p/iv/1.md', '    p/iv/2.md', '  [—]', '    p/iv/4.md']);
+    const top = set.nodes[0] as SetGroup;
+    expect(top.children.map((c) => (isGroup(c) ? c.key : ''))).toEqual(['p/iv/anna-lehrerin', 'p/iv/bernd-schreiner', 'p/iv/—']);
+    expect(findings.map((f) => f.code)).toEqual([CODES.setNoGroupValue]);
+  });
+
+  it('uneinheitliche Werte: der erste gilt, eine Warnung set.group-title nennt Feld, Gruppe, Titel und den abweichenden Wert an der Notiz', () => {
+    const mixed = NOTES.map((n) => (n.path === 'p/iv/2.md' ? note(n.path, { persona: 'bernd-schreiner', vorname: 'Bernhard' }) : n));
+    const { set, findings } = buildSet(folderScope('p'), mixed, r(['vorname']));
+    expect(outline(set.nodes)[3]).toBe('  [Bernd]');
+    expect(findings).toContainEqual({ severity: 'warning', code: CODES.setGroupTitle, args: ['vorname', 'bernd-schreiner', 'Bernd', 'Bernhard'], notePath: 'p/iv/2.md', recipePath: 'sections[0]' });
+  });
+
+  it('kein Wert in der ganzen Gruppe: Hinweis set.group-title.missing, der Gruppenwert bleibt Titel; eine fehlende Notiz neben Werten ist kein Befund', () => {
+    const partly = NOTES.map((n) => (n.path === 'p/iv/2.md' ? note(n.path, { persona: 'bernd-schreiner' }) : n.path === 'p/iv/3.md' ? note(n.path, { persona: 'anna-lehrerin' }) : n));
+    const { set, findings } = buildSet(folderScope('p'), partly, r(['vorname']));
+    expect(outline(set.nodes).filter((l) => l.startsWith('  ['))).toEqual(['  [anna-lehrerin]', '  [Bernd]', '  [—]']);
+    expect(findings.filter((f) => f.code === CODES.setGroupTitle)).toEqual([{ severity: 'info', code: CODES.setGroupTitle, variant: 'missing', args: ['vorname', 'anna-lehrerin'], recipePath: 'sections[0]' }]);
+  });
+
+  it('gilt je Ebene: title_from mit einem Feld für zwei group_by-Ebenen setzt nur die erste', () => {
+    const notes = [note('p/p.md'), note('p/iv/1.md', { lauf: 's11', lauf_name: 'Lauf elf', persona: 'b', vorname: 'Bernd' })];
+    const { set } = buildSet(folderScope('p'), notes, r(['lauf_name'], ['lauf', 'persona']));
+    expect(outline(set.nodes)).toEqual(['[Interviews]', '  [Lauf elf]', '    [b]', '      p/iv/1.md']);
+  });
+
+  it('wirkt auch in einer Obergruppe über mehrere Quellen', () => {
+    const notes = [note('a/bericht.md'), note('runs/s11/x.md', { persona: 'b', vorname: 'Bernd' })];
+    const recipe = withRecipe({ sources: [{ path: '../runs/s11', key: 's11' }], sections: [section({ kind: 'sources', path: '', sources: ['s11'], title: 'Interviews', groupBy: ['persona'], titleFrom: ['vorname'] })] });
+    const { set } = buildSet(folderScope('a', 'a/bericht.md'), notes, recipe);
+    expect(outline(set.nodes)).toEqual(['[Interviews]', '  [s11]', '    [Bernd]', '      runs/s11/x.md']);
+  });
+});

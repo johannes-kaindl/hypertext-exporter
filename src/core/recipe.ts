@@ -95,6 +95,9 @@ const COLUMN: NestedObjectSchema = {
   exactlyOne: ['field', 'template'],
 };
 const COLUMNS = (aliases: string[]): FieldSchema => ({ type: 'array', aliases, items: [{ type: 'string' }, COLUMN] });
+/** Eine Spalte der Zusatzzeile kennt dazu `label`: der Name, der vor dem Wert steht („Stelle: absender“). In der Übersicht ist `label` unbekannt (die Spalte hat dort ihre Überschrift). */
+const SUMMARY_COLUMN: NestedObjectSchema = { ...COLUMN, properties: { ...COLUMN.properties, label: text(['beschriftung']) } };
+const SUMMARY_COLUMNS = (aliases: string[]): FieldSchema => ({ type: 'array', aliases, items: [{ type: 'string' }, SUMMARY_COLUMN] });
 
 const SOURCE: NestedObjectSchema = {
   type: 'object',
@@ -108,14 +111,16 @@ const SECTION: NestedObjectSchema = {
     folder: text(['ordner']),
     note: text(['datei']),
     source: text(['quelle']),
+    sources: textList(['quellen']),
     title: text(['titel']),
     order: text(['reihenfolge']),
     group_by: textList(['gruppen']),
+    title_from: textList(['titel_aus']),
     overview: COLUMNS(['uebersicht']),
-    summary_line: COLUMNS(['zusatzzeile']),
+    summary_line: SUMMARY_COLUMNS(['zusatzzeile']),
     open: { type: 'boolean', aliases: ['offen'] },
   },
-  exactlyOne: ['folder', 'note', 'source'],
+  exactlyOne: ['folder', 'note', 'source', 'sources'],
 };
 
 const FIELDS: NestedObjectSchema = {
@@ -198,7 +203,7 @@ function orderRule(raw: string | undefined): OrderRule {
   return { kind: 'field', field: raw };
 }
 
-function columnsOf(value: unknown, path: string, problems: Finding[]): Column[] {
+function columnsOf(value: unknown, path: string, problems: Finding[], schema: NestedObjectSchema = COLUMN): Column[] {
   if (!Array.isArray(value)) return [];
   const out: Column[] = [];
   value.forEach((item: unknown, i) => {
@@ -212,10 +217,12 @@ function columnsOf(value: unknown, path: string, problems: Finding[]): Column[] 
     const header = str(pick(item, COLUMN, 'header'));
     const field = str(pick(item, COLUMN, 'field'));
     const template = str(pick(item, COLUMN, 'template'));
-    if (field !== undefined && template === undefined) out.push({ header: header ?? field, field });
+    const label = schema === COLUMN ? undefined : str(pick(item, schema, 'label'));
+    const labelled = label === undefined ? {} : { label };
+    if (field !== undefined && template === undefined) out.push({ header: header ?? field, field, ...labelled });
     else if (template !== undefined && field === undefined) {
       if (header === undefined) problems.push({ severity: 'error', code: CODES.recipeInvalid, variant: 'column-header', args: [at], recipePath: at });
-      else out.push({ header, template });
+      else out.push({ header, template, ...labelled });
     }
   });
   return out;
@@ -226,21 +233,38 @@ function sectionsOf(value: unknown, problems: Finding[]): SectionSpec[] {
   const out: SectionSpec[] = [];
   value.forEach((item: unknown, i) => {
     if (!isObject(item)) return;
+    const at = `sections[${i}]`;
+    const invalid = (path: string, variant: string, args: readonly FindingArg[] = [], severity: Finding['severity'] = 'error'): void => {
+      problems.push({ severity, code: CODES.recipeInvalid, variant, args: [path, ...args], recipePath: path });
+    };
     const given = (['folder', 'note', 'source'] as const).flatMap((kind) => {
       const path = str(pick(item, SECTION, kind));
       return path === undefined ? [] : [{ kind, path }];
     });
-    const only = given.length === 1 ? given[0] : undefined;
-    if (only === undefined) return;
+    const rawSources = pick(item, SECTION, 'sources');
+    // Obergruppe über mehrere Quellen: zählt als gegeben, sobald der Schlüssel da ist; eine leere Liste ist ein eigener Fehler (das Kit zählt `[]` als gegeben).
+    const sources = rawSources === undefined ? undefined : strList(rawSources);
+    if (given.length + (sources === undefined ? 0 : 1) !== 1) return;
     const title = str(pick(item, SECTION, 'title'));
+    if (sources !== undefined) {
+      if (Array.isArray(rawSources) && sources.length === 0) invalid(`${at}.sources`, 'section-sources-empty');
+      if (title === undefined) invalid(at, 'section-sources-title');
+      if (sources.length === 0 || title === undefined) return;
+    }
+    const groupBy = strList(pick(item, SECTION, 'group_by'));
+    const titleFrom = strList(pick(item, SECTION, 'title_from'));
+    if (titleFrom.length > groupBy.length) invalid(`${at}.title_from`, 'title-from-extra', [titleFrom.length, groupBy.length], 'warning');
+    const only = given[0];
     out.push({
-      kind: only.kind,
-      path: only.path,
+      kind: sources !== undefined ? 'sources' : (only?.kind ?? 'folder'),
+      path: only?.path ?? '',
+      ...(sources !== undefined ? { sources } : {}),
       ...(title !== undefined ? { title } : {}),
       order: orderRule(str(pick(item, SECTION, 'order'))),
-      groupBy: strList(pick(item, SECTION, 'group_by')),
-      overview: columnsOf(pick(item, SECTION, 'overview'), `sections[${i}].overview`, problems),
-      summaryLine: columnsOf(pick(item, SECTION, 'summary_line'), `sections[${i}].summary_line`, problems),
+      groupBy,
+      ...(titleFrom.length > 0 ? { titleFrom: titleFrom.slice(0, groupBy.length) } : {}),
+      overview: columnsOf(pick(item, SECTION, 'overview'), `${at}.overview`, problems),
+      summaryLine: columnsOf(pick(item, SECTION, 'summary_line'), `${at}.summary_line`, problems, SUMMARY_COLUMN),
       open: pick(item, SECTION, 'open') === true,
     });
   });

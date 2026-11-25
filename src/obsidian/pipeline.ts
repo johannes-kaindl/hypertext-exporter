@@ -16,7 +16,7 @@ import { FindingList } from '../core/findings';
 import { finalCheck, finalGuard } from '../core/final-check';
 import { filterMathCss } from '../core/math-css';
 import { buildOverview, summaryLine } from '../core/overview';
-import { buildPage, pageScript } from '../core/page';
+import { buildPage, buildToc, pageScript } from '../core/page';
 import { DEFAULT_RECIPE, notYetFindings, parseRecipe } from '../core/recipe';
 import { resultJson } from '../core/result-file';
 import { buildSet } from '../core/set';
@@ -282,12 +282,7 @@ export async function runExport(host: PipelineHost, req: ExportRequest, run: Run
     remoteImages: recipe.remoteImages,
     ...(recipe.stamp === 'full' ? { plugins: enabledPlugins(app) } : {}),
   });
-  const toc: Array<{ anchor: string; title: string }> = [{ anchor: structured.anchors.get(set.entry.path) ?? '', title: set.title }];
-  for (const node of set.nodes) {
-    // Gruppen und lose Notizen der obersten Ebene in der Reihenfolge der Seite; Notizen in Gruppen führt die Gruppe selbst.
-    if ('children' in node) toc.push({ anchor: structured.groupAnchors.get(node) ?? '', title: node.title });
-    else toc.push({ anchor: structured.anchors.get(node.path) ?? '', title: node.title });
-  }
+  const toc = buildToc(set, structured.anchors, structured.groupAnchors);
   const html = buildPage({ title: set.title, lang: recipe.lang, toc, body: structured.body, css: `${BASE_CSS}\n${themeCss}`, mathCss: math.css, stamp });
   if (await stop()) return result(false);
 

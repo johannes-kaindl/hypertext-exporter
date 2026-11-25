@@ -4,12 +4,37 @@ import { escapeHtmlAttr, escapeHtmlText } from '../vendor/kit/html-escape';
 import { buildPageSearchControls, buildPageSearchScript, type PageSearchConfig } from '../vendor/kit/page-search';
 import { buildScreenDocument } from '../vendor/kit/screen-document';
 import { PAGE_TEXTS, type PageLang } from './page-texts';
+import type { ExportSet, SetGroup } from './types';
+
+/** Ein Eintrag der Navigation; `children` führt die Untergruppen einer Obergruppe über mehrere Quellen (eine Ebene). */
+export interface TocEntry { anchor: string; title: string; children?: TocEntry[] }
+
+/**
+ * Die Navigation: Einstieg, dann Gruppen und lose Notizen der obersten Ebene in der Reihenfolge der Seite; Notizen in Gruppen führt die Gruppe selbst.
+ * Eine Gruppe mit `nav` (Obergruppe über mehrere Quellen) führt zusätzlich ihre Untergruppen, damit jede Quelle von oben erreichbar bleibt.
+ */
+export function buildToc(set: ExportSet, anchors: Map<string, string>, groupAnchors: Map<SetGroup, string>): TocEntry[] {
+  const toc: TocEntry[] = [{ anchor: anchors.get(set.entry.path) ?? '', title: set.title }];
+  for (const node of set.nodes) {
+    if (!('children' in node)) {
+      toc.push({ anchor: anchors.get(node.path) ?? '', title: node.title });
+      continue;
+    }
+    const entry: TocEntry = { anchor: groupAnchors.get(node) ?? '', title: node.title };
+    if (node.nav === true) {
+      const children = node.children.flatMap((c): TocEntry[] => ('children' in c ? [{ anchor: groupAnchors.get(c) ?? '', title: c.title }] : []));
+      if (children.length > 0) entry.children = children;
+    }
+    toc.push(entry);
+  }
+  return toc;
+}
 
 export interface PageInput {
   title: string;
   lang: PageLang;
   /** Einstieg, Gruppen und lose Notizen der obersten Ebene für die Navigation, in der Reihenfolge der Seite; `anchor` ist die Marke ohne `#`. */
-  toc: Array<{ anchor: string; title: string }>;
+  toc: TocEntry[];
   /** Der fertige Inhalt (Kinder werden in `<main id="inhalt">` übernommen); wird nur gelesen, nie verändert. */
   body: HTMLElement;
   /** Grundgestaltung und Thema, schon zu einem Text verbunden. */
@@ -63,7 +88,10 @@ const HEAD_ANCHOR = '</title>\n';
 
 function navigation(input: PageInput): string {
   const texts = PAGE_TEXTS[input.lang];
-  const items = input.toc.map((e) => `<li><a href="#${escapeHtmlAttr(e.anchor)}">${escapeHtmlText(e.title)}</a></li>`);
+  const link = (e: TocEntry): string => `<a href="#${escapeHtmlAttr(e.anchor)}">${escapeHtmlText(e.title)}</a>`;
+  const items = input.toc.map((e) =>
+    e.children === undefined ? `<li>${link(e)}</li>` : `<li>${link(e)}\n<ul>\n${e.children.map((c) => `<li>${link(c)}</li>`).join('\n')}\n</ul>\n</li>`,
+  );
   return (
     `<nav aria-label="${escapeHtmlAttr(texts.tocHeading)}">\n` +
     `<a class="ht-skip" href="#inhalt">${escapeHtmlText(texts.skipLink)}</a>\n` +

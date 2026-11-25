@@ -28,16 +28,34 @@ Keys marked "not yet built" give one warning each, `recipe.not-yet`, naming the 
 
 ## sections
 
-Each entry names exactly one of `folder` (`ordner`), `note` (`datei`) or `source` (`quelle`). `folder` and `note` are paths relative to the exported folder (the folder of the entry note); `source` is the key of an entry in `sources`. A folder or note that is not listed in `sections` is not on the page. A note that two sections would both take stays in the first and gives a warning (`recipe.invalid`).
+Each entry names exactly one of `folder` (`ordner`), `note` (`datei`), `source` (`quelle`) or `sources` (`quellen`). `folder` and `note` are paths relative to the exported folder (the folder of the entry note); `source` is the key of an entry in `sources`; `sources` is a list of such keys and makes one group over several sources (see below). A folder or note that is not listed in `sections` is not on the page. A note that two sections would both take stays in the first and gives a warning (`recipe.invalid`).
 
 | Key (alias) | Meaning |
 |---|---|
 | `title` (`titel`) | Title of the group. Default: the folder name without its number prefix. |
 | `order` (`reihenfolge`) | `name` (default), `mention` (order of first mention in the entry note, the rest after), `field:<name>`, or any other text, which is read as a field name. |
+| `title_from` (`titel_aus`) | List of fields, one per level of `group_by`: the groups of that level take their title from this field of their notes instead of the grouping value. Order and anchors stay with the grouping value. If the notes of a group disagree, the first value in the group's order wins and the run gives a warning `set.group-title` at the first note that differs; if none has a value, the group keeps the grouping value and gets a notice `set.group-title`. More fields than levels give a warning (`recipe.invalid`). |
 | `group_by` (`gruppen`) | List of fields. Notes with the same value of the first field form a group, then the next field groups inside it. The word `folder` (`ordner`) stands for the folder of the note. A note without a value goes to a group named "—" at the end and gets a notice `set.no-group-value`. |
 | `overview` (`uebersicht`) | List of columns for a table with one row per note. The first column is the title as a jump link. |
-| `summary_line` (`zusatzzeile`) | List of columns shown as one line below the title of each note. |
+| `summary_line` (`zusatzzeile`) | List of columns shown as one line below the title of each note, joined by ` · `. A column object may carry `label` (`beschriftung`): the cell then reads `label: value`; an empty cell is left out together with its label. `label` exists only here, in `overview` the column has its `header`. |
 | `open` (`offen`) | `true` opens the group when the page loads. Default: closed. |
+
+### A group over several sources
+
+```yaml
+  sources:
+    - path: ../../runs/run-a/interviews
+      key: run-a
+    - path: ../../runs/run-b/interviews
+      key: run-b
+  sections:
+    - sources: [run-a, run-b]
+      title: Interviews
+      group_by: [persona]
+      title_from: [first_name]
+```
+
+The page shows one group "Interviews", inside it one group per source in the order of the list (titled with the source's `title`, otherwise the folder name), inside each source the groups of `group_by`. `title` is required here. `order`, `group_by` and `title_from` apply inside every source; `title`, `open`, `overview` and `summary_line` belong to the outer group, and the summary line applies to every note below it. The navigation lists the outer group and, indented below it, its sources. A key that is not under `sources` is an error; a source that an earlier section already shows is skipped with a warning. Sources not named by any section still follow at the end, as before.
 
 A column is either a field name (a dot reads nested fields: `models.a.count`), or an object with `header` (`ueberschrift`) and exactly one of `field` (`feld`) or `template` (`vorlage`). A template is text with field names in curly braces, for example `"{status}, {distance_km} km"`. A template column needs a `header`. A missing field leaves the cell empty and is reported once per field with the number of notes (`field.missing`). Field values are always written as text, never read as HTML or Markdown.
 

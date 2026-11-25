@@ -130,7 +130,7 @@ Die Bauanleitung (`hypertext:` in der Einstiegsnotiz). Alle Schlüssel, Aliase u
 | `version` | `1` | `1` | Fassung des Formats der Bauanleitung. |
 | `title` | Text | Titel der Einstiegsnotiz | Titel der Seite. |
 | `lang` | `en`, `de` | `en` | Sprache der Texte, die die Seite selbst setzt (Suche, Sprunglink). |
-| `sections` | Liste | eine Gruppe je Unterordner | Gruppen und lose Notizen: `folder`, `note` oder `source`, dazu `title`, `order`, `group_by`, `overview`, `summary_line`, `open`. |
+| `sections` | Liste | eine Gruppe je Unterordner | Gruppen und lose Notizen: `folder`, `note`, `source` oder `sources` (eine Gruppe über mehrere Quellen), dazu `title`, `order`, `group_by`, `title_from`, `overview`, `summary_line` (Spalten mit `label`), `open`. |
 | `sources` | Liste von Ordnern | keine | Ordner außerhalb des exportierten, die dazugehören, mit `key` und `title`. |
 | `fields` | `title`, `order`, `exclude` | die festen Namen | Welches Feld deiner Notizen Titel, Reihenfolge und Ausschluss trägt. |
 | `fold` | `headings_from`, `linked_summary` | keine Faltung | Ab welcher Überschriftsebene die Einstiegsnotiz faltet; ob ein Block die Zusatzzeile der Notiz zeigt, auf die er verlinkt. |

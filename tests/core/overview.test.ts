@@ -188,3 +188,16 @@ describe('summaryLine', () => {
     expect(r).toEqual({ text: '0 · false', missing: [] });
   });
 });
+
+describe('summaryLine mit label (Spaltennamen in der Zusatzzeile)', () => {
+  it('eine Spalte mit label steht als „label: Wert“, ohne label wie bisher; eine leere Zelle fällt samt label weg', () => {
+    const columns: Column[] = [
+      { header: 'stelle', field: 'stelle', label: 'Stelle' },
+      { header: 'B', template: '{befunde} Befunde' },
+      { header: 'pro', template: '{a} von {b} Personas', label: 'verdigado-pro' },
+      { header: 'x', field: 'fehlt', label: 'Fehlt' },
+    ];
+    const r = summaryLine(note('a.md', 'A', { stelle: 'absender', befunde: 20, a: 4, b: 12 }), columns);
+    expect(r).toEqual({ text: 'Stelle: absender · 20 Befunde · verdigado-pro: 4 von 12 Personas', missing: ['fehlt'] });
+  });
+});

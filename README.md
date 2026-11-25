@@ -126,7 +126,7 @@ The recipe (`hypertext:` in the entry note). All keys, aliases and the rules of 
 | `version` | `1` | `1` | Version of the recipe format. |
 | `title` | text | title of the entry note | Title of the page. |
 | `lang` | `en`, `de` | `en` | Language of the texts the page itself writes (search, skip link). |
-| `sections` | list | one group per subfolder | Groups and loose notes: `folder`, `note` or `source`, with `title`, `order`, `group_by`, `overview`, `summary_line`, `open`. |
+| `sections` | list | one group per subfolder | Groups and loose notes: `folder`, `note`, `source`, or `sources` (one group over several sources), with `title`, `order`, `group_by`, `title_from`, `overview`, `summary_line` (columns may carry a `label`), `open`. |
 | `sources` | list of folders | none | Folders outside the exported one that belong to it, with `key` and `title`. |
 | `fields` | `title`, `order`, `exclude` | the fixed names | Which field of your notes holds the title, the order and the exclusion. |
 | `fold` | `headings_from`, `linked_summary` | no folding | From which heading level on the entry note folds; whether a block shows the summary line of the note it links to. |

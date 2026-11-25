@@ -11,7 +11,7 @@ The result file is `<note name>.export.json`. It holds `ok`, `path` (the page, o
 | Code | Severity | Meaning |
 |---|---|---|
 | `recipe.unknown-key` | warning | A key the recipe does not know. It is ignored. The finding names the key. |
-| `recipe.invalid` | error, or warning for an empty source | A value of the wrong type or outside the allowed values, a section without a target, two sources with one key, a path outside the vault. |
+| `recipe.invalid` | error; warning for an empty source, a source shown by an earlier section, or more `title_from` fields than `group_by` levels | A value of the wrong type or outside the allowed values, a section without a target, two sources with one key, a path outside the vault, a group over several sources without `title` or with an empty list. |
 | `recipe.value-later` | error | A value that applies from a later version, for example `embeds: live`. |
 | `recipe.version` | error | A `version` this plugin does not read. |
 | `recipe.not-yet` | warning | A key that is read but not built yet: `grids`, a `theme` other than `default`, `output: package`, `remote_images: embed`. |
@@ -24,6 +24,7 @@ The result file is `<note name>.export.json`. It holds `ok`, `path` (the page, o
 | `set.empty-file` | notice | A note without a body was skipped. |
 | `set.excluded` | notice | A note with `exclude` was skipped. |
 | `set.no-group-value` | notice | A note has no value in a `group_by` field and sits in the group "—". |
+| `set.group-title` | warning; notice if no note has a value | The notes of a group carry different values in the `title_from` field (the first one is the title), or none carries one (the grouping value stays the title). |
 
 ## Drawing
 

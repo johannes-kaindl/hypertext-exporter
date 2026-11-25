@@ -9,9 +9,14 @@ export type FindingArg = string | number;
 export interface Finding { severity: Severity; code: string; variant?: string; args?: readonly FindingArg[]; notePath?: string; recipePath?: string }
 export type BlocksMode = 'none' | 'core' | 'all';
 export type OutputMode = 'auto' | 'file' | 'package';
-export interface Column { header: string; field?: string; template?: string }   // genau eins von field, template
+/** genau eins von field, template; `label` nur in der Zusatzzeile: steht als „label: Wert“ vor dem Wert. */
+export interface Column { header: string; field?: string; template?: string; label?: string }
 export type OrderRule = { kind: 'name' } | { kind: 'mention' } | { kind: 'field'; field: string };
-export interface SectionSpec { kind: 'folder' | 'note' | 'source'; path: string; title?: string; order: OrderRule; groupBy: string[]; overview: Column[]; summaryLine: Column[]; open: boolean }
+/**
+ * Ein Bereich. `kind: 'sources'` ist eine Obergruppe über mehrere Quellen: `sources` nennt ihre Schlüssel, `path` ist leer, `title` ist Pflicht.
+ * `titleFrom[i]` ist das Feld, aus dem die Gruppen der Ebene `groupBy[i]` ihren Titel nehmen (fehlt es, ist der Titel der Gruppenwert).
+ */
+export interface SectionSpec { kind: 'folder' | 'note' | 'source' | 'sources'; path: string; sources?: string[]; title?: string; order: OrderRule; groupBy: string[]; titleFrom?: string[]; overview: Column[]; summaryLine: Column[]; open: boolean }
 export interface SourceSpec { path: string; key: string; title?: string }
 export interface GridRule { states: Record<string, string[]>; groupColumns: 'header-prefix' | null; rowNote: 'parentheses' | null }
 /** Pause über createCooperativeYield, Zustand über makeRunState (code-kit). */
@@ -26,7 +31,8 @@ export interface Recipe { version: 1; title?: string; lang: 'en' | 'de'; sources
 export interface NoteInput { path: string; frontmatter: Record<string, unknown>; body: string; links: string[] }
 /** depth: Zahl der Gruppen darüber; Marken vergibt erst Task 9. */
 export interface SetNote { path: string; title: string; frontmatter: Record<string, unknown>; body: string; sourceKey?: string; depth: number }
-export interface SetGroup { key: string; title: string; open: boolean; overview: Column[]; summaryLine: Column[]; children: SetNode[] }
+/** `nav`: die Navigation führt die Untergruppen unter dieser Gruppe (Obergruppe über mehrere Quellen). */
+export interface SetGroup { key: string; title: string; open: boolean; overview: Column[]; summaryLine: Column[]; children: SetNode[]; nav?: boolean }
 export type SetNode = SetGroup | SetNote;
 export interface ExportSet { title: string; entry: SetNote; nodes: SetNode[]; notesInOrder: SetNote[] }
 export type ExportScope = { kind: 'folder'; folder: string; entryPath: string } | { kind: 'note'; entryPath: string };

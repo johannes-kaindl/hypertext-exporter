@@ -283,3 +283,60 @@ describe('parseRecipe', () => {
     expect(a.recipe).toEqual(b.recipe);
   });
 });
+
+describe('parseRecipe: Obergruppe, Spaltennamen, Gruppentitel (Vertragslücken focus-crew)', () => {
+  const only = (raw: unknown): ReturnType<typeof parseRecipe>['findings'] => parseRecipe(raw).findings;
+
+  it('sources in einem Bereich ist eine Obergruppe über mehrere Quellen, mit Titel und dem Alias quellen', () => {
+    const { recipe, findings } = parseRecipe({ sections: [{ sources: ['a', 'b'], title: 'Interviews', group_by: ['persona'] }] });
+    expect(findings).toEqual([]);
+    expect(recipe.sections[0]).toMatchObject({ kind: 'sources', path: '', sources: ['a', 'b'], title: 'Interviews', groupBy: ['persona'] });
+    const de = parseRecipe({ bereiche: [{ quellen: ['a', 'b'], titel: 'Interviews', gruppen: ['persona'] }] });
+    expect(de.recipe.sections).toEqual(recipe.sections);
+  });
+
+  it('eine Obergruppe ohne Titel oder mit leerer Liste ist ein Fehler, der Bereich fällt weg', () => {
+    const noTitle = parseRecipe({ sections: [{ sources: ['a'] }] });
+    expect(noTitle.findings).toEqual([expect.objectContaining({ severity: 'error', code: CODES.recipeInvalid, variant: 'section-sources-title', recipePath: 'sections[0]' })]);
+    expect(noTitle.recipe.sections).toEqual([]);
+    const empty = parseRecipe({ sections: [{ sources: [], title: 'X' }] });
+    expect(empty.findings).toEqual([expect.objectContaining({ severity: 'error', code: CODES.recipeInvalid, variant: 'section-sources-empty', recipePath: 'sections[0].sources' })]);
+    expect(empty.recipe.sections).toEqual([]);
+  });
+
+  it('source und sources zugleich ist ein Fehler recipe.invalid one-of', () => {
+    expect(only({ sections: [{ source: 'a', sources: ['b'], title: 'X' }] })[0]).toMatchObject({ severity: 'error', code: CODES.recipeInvalid, variant: 'one-of', recipePath: 'sections[0]' });
+  });
+
+  it('label (Alias beschriftung) gilt in summary_line; in overview ist es ein unbekannter Schlüssel', () => {
+    const { recipe, findings } = parseRecipe({ sections: [{ folder: 'a', summary_line: [{ field: 'stelle', label: 'Stelle' }, { header: 'B', template: '{n} Befunde', beschriftung: 'Befunde' }, 'frage'] }] });
+    expect(findings).toEqual([]);
+    expect(recipe.sections[0]?.summaryLine).toEqual([
+      { header: 'stelle', field: 'stelle', label: 'Stelle' },
+      { header: 'B', template: '{n} Befunde', label: 'Befunde' },
+      { header: 'frage', field: 'frage' },
+    ]);
+    const inOverview = parseRecipe({ sections: [{ folder: 'a', overview: [{ field: 'x', label: 'X' }] }] });
+    expect(inOverview.findings).toEqual([expect.objectContaining({ severity: 'warning', code: CODES.recipeUnknownKey, recipePath: 'sections[0].overview[0].label' })]);
+    expect(inOverview.recipe.sections[0]?.overview).toEqual([{ header: 'x', field: 'x' }]);
+  });
+
+  it('title_from (Alias titel_aus) läuft mit group_by; mehr Felder als Ebenen ist eine Warnung, die übrigen fallen weg', () => {
+    const { recipe, findings } = parseRecipe({ sections: [{ folder: 'a', group_by: ['lauf', 'persona'], title_from: ['lauf_name', 'vorname'] }] });
+    expect(findings).toEqual([]);
+    expect(recipe.sections[0]?.titleFrom).toEqual(['lauf_name', 'vorname']);
+    expect(parseRecipe({ sections: [{ folder: 'a', gruppen: ['persona'], titel_aus: ['vorname'] }] }).recipe.sections[0]?.titleFrom).toEqual(['vorname']);
+    const extra = parseRecipe({ sections: [{ folder: 'a', group_by: ['persona'], title_from: ['vorname', 'x'] }] });
+    expect(extra.findings).toEqual([expect.objectContaining({ severity: 'warning', code: CODES.recipeInvalid, variant: 'title-from-extra', args: ['sections[0].title_from', 2, 1] })]);
+    expect(extra.recipe.sections[0]?.titleFrom).toEqual(['vorname']);
+  });
+
+  it('eine Bauanleitung ohne die neuen Schlüssel liest sich wie vorher: kein titleFrom, kein label, kein sources am Bereich', () => {
+    const { recipe } = parseRecipe({ sections: [{ folder: 'a', group_by: ['p'], summary_line: ['x'], overview: ['y'] }, { source: 'q' }, { note: 'n.md' }] });
+    for (const s of recipe.sections) {
+      expect(s).not.toHaveProperty('titleFrom');
+      expect(s).not.toHaveProperty('sources');
+      for (const c of [...s.overview, ...s.summaryLine]) expect(c).not.toHaveProperty('label');
+    }
+  });
+});

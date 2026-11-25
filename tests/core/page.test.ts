@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
-import { buildPage, pageScript, SEARCH_IDS, type PageInput } from '../../src/core/page';
+import { buildPage, buildToc, pageScript, SEARCH_IDS, type PageInput } from '../../src/core/page';
+import type { ExportSet, SetGroup, SetNode, SetNote } from '../../src/core/types';
 import { assignNoteMarks, createNoteMarks } from '../../src/vendor/kit/anchor-marks';
 import { sha256Base64Utf8 } from '../../src/vendor/kit/sha256';
 
@@ -167,5 +168,36 @@ describe('buildPage', () => {
       expect(t.parentElement?.parentElement?.closest('.ht-table')).toBeNull();
     }
     expect(body.innerHTML).toBe(before);
+  });
+});
+
+describe('Navigation mit Obergruppe', () => {
+  it('ein Eintrag mit children trägt eine eingerückte Unterliste; ohne children bleibt die Liste flach wie vorher', () => {
+    const doc = parse(buildPage(input({ toc: [{ anchor: 'a', title: 'Erste' }, { anchor: 'iv', title: 'Interviews', children: [{ anchor: 's11', title: 'Lauf 11' }, { anchor: 's12', title: 'Lauf <12>' }] }] })));
+    expect(Array.from(doc.querySelectorAll('nav > ul > li > a')).map((a) => a.getAttribute('href'))).toEqual(['#a', '#iv']);
+    expect(Array.from(doc.querySelectorAll('nav > ul > li > ul > li > a')).map((a) => [a.getAttribute('href'), a.textContent])).toEqual([['#s11', 'Lauf 11'], ['#s12', 'Lauf <12>']]);
+    const flat = buildPage(input());
+    expect(flat).toContain('<ul>\n<li><a href="#a">Erste</a></li>\n<li><a href="#b">Zweite &lt;b&gt;</a></li>\n</ul>');
+  });
+});
+
+describe('buildToc', () => {
+  const n = (path: string, title: string): SetNote => ({ path, title, frontmatter: {}, body: '', depth: 1 });
+  const g = (key: string, title: string, children: SetNode[], nav?: boolean): SetGroup => ({ key, title, open: false, overview: [], summaryLine: [], children, ...(nav === true ? { nav } : {}) });
+
+  it('Einstieg, oberste Ebene; nur eine Gruppe mit nav führt ihre Untergruppen', () => {
+    const lauf = g('s11', 'Lauf 11', [n('x.md', 'X')]);
+    const ober = g('Interviews', 'Interviews', [lauf, n('lose.md', 'Lose')], true);
+    const ordner = g('themen', 'Themen', [g('themen/a', 'A', [n('a.md', 'a')])]);
+    const entry = n('e.md', 'E');
+    const set: ExportSet = { title: 'Bericht', entry, nodes: [ordner, ober, n('m.md', 'M')], notesInOrder: [] };
+    const anchors = new Map([['e.md', 'e'], ['m.md', 'm']]);
+    const groupAnchors = new Map<SetGroup, string>([[ordner, 'themen'], [ober, 'interviews'], [lauf, 's11']]);
+    expect(buildToc(set, anchors, groupAnchors)).toEqual([
+      { anchor: 'e', title: 'Bericht' },
+      { anchor: 'themen', title: 'Themen' },
+      { anchor: 'interviews', title: 'Interviews', children: [{ anchor: 's11', title: 'Lauf 11' }] },
+      { anchor: 'm', title: 'M' },
+    ]);
   });
 });

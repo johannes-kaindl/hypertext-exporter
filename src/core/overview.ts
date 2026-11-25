@@ -31,14 +31,14 @@ function cellOf(idx: FmIndex, column: Column): Cell {
   return value.notice !== undefined || value.text === '' ? { text: '', missing: [field] } : { text: value.text, missing: [] };
 }
 
-/** Die Zusatzzeile einer Notiz: die nichtleeren Zellen der Spalten, mit ` · ` verbunden; `missing` nennt je Feld einmal, was fehlte (Reihenfolge der ersten Nennung). */
+/** Die Zusatzzeile einer Notiz: die nichtleeren Zellen der Spalten (mit `label` als „label: Wert“), mit ` · ` verbunden; eine leere Zelle fällt samt `label` weg; `missing` nennt je Feld einmal, was fehlte (Reihenfolge der ersten Nennung). */
 export function summaryLine(note: SetNote, columns: Column[]): { text: string; missing: string[] } {
   const idx = buildFmIndex(note.frontmatter);
   const parts: string[] = [];
   const missing = new Set<string>();
   for (const column of columns) {
     const cell = cellOf(idx, column);
-    if (cell.text !== '') parts.push(cell.text);
+    if (cell.text !== '') parts.push(column.label === undefined ? cell.text : `${column.label}: ${cell.text}`);
     for (const name of cell.missing) missing.add(name);
   }
   return { text: parts.join(SUMMARY_SEPARATOR), missing: [...missing] };
