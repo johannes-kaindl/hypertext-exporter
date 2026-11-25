@@ -2,11 +2,7 @@
 
 Orientierung für KI-Agenten (Claude Code, Codex, …) und Mitwirkende an diesem Repository. Workspace-weite Standards (comply-or-explain): siehe [`../../workspace/_docs/CONVENTIONS.md`](../../workspace/_docs/CONVENTIONS.md) (maintainer-lokal, nicht Teil dieses Repos — ignorieren, falls im Klon nicht vorhanden).
 
-**Stand 2026-11-25 (Nachlauf Welle 37):** obsidian-kit 0.109.1 vendort (`690f00d`); die Bauanleitung kennt die Obergruppe über mehrere Quellen (`sources` im Bereich), `label` in der Zusatzzeile und `title_from` (`56b9411`), gemessen am focus-crew-Bericht; release-reif für 0.1.0 bis auf die iPhone-Messung (Handover im Cockpit). Davor:
-
-**Stand 2026-11-24 (Etappe 11, Doku):** README (EN, DE), Doku unter `docs/`, vier README-Bilder (`npm run shots`, Vertrag `docs/images/README.md`) und CHANGELOG `[Unreleased]` stehen; `readme_lint` ohne Befund; kein Release, kein Tag. Davor:
-
-**Stand 2026-11-19 (23:15):** Etappe 5 gebaut und bis auf den focus-crew-Bericht abgenommen: Smoke P1 bis P6 grün, Beispielordner 29 von 31 Sätzen am DOM und im Chrome (`file://`) gemessen, Store-Bauart geprüft. Offene Reste als Tasks im Coding-Cockpit; Etappen 6 bis 12 warten auf Johannes' Freigabe. Spec und Bauplan liegen im Coding-Cockpit; der Bauplan ist die SSOT für den Stand je Task.
+**Stand 2026-11-25 (Welle 38):** release-reif für 0.1.0, wartet nur auf Johannes' Blick am iPhone (Handover im Cockpit). Am iPhone gemessen: Export unter 10 s, byte-gleich, Befunde wie am Mac; die App Dateien zeigt die Seite ohne Skript, von einer Webadresse läuft die Suche (iOS-Simulator), README nennt die Grenze. Etappen 6, 8 und 9 laufen nach 0.1.0. Spec und Bauplan liegen im Coding-Cockpit; der Bauplan ist die SSOT für den Stand je Task, ältere Stände stehen in `git log` und im Cockpit-Log.
 
 ## Project character
 
